@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 
@@ -86,6 +86,183 @@ function getMonthGrid(year, month) {
   for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(year, month, d));
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
+}
+
+// Full-screen task summary modal
+function TaskSummary({ task, clients, onEdit, onClose }) {
+  const cc = clientColor(task.client, clients);
+  const pr = PRIORITY_STYLES[task.priority];
+  const cs = COL_STYLES[task.col];
+  const od = isOverdue(task.due, task.col);
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+  return createPortal(
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.5)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 480,
+          boxShadow: "0 25px 50px rgba(0,0,0,0.2)",
+          boxSizing: "border-box",
+          animation: "slideUp .18s ease",
+          overflow: "hidden",
+        }}
+      >
+        {/* Coloured top bar */}
+        <div style={{ height: 4, background: `linear-gradient(90deg, ${cc.border}, ${cc.dot})` }} />
+        <div style={{ padding: "24px 24px 20px" }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ flex: 1, paddingRight: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span
+                  style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 500, color: cc.text }}>{task.client}</span>
+              </div>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.3 }}>
+                {task.title}
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: "#F1F5F9",
+                border: "none",
+                borderRadius: 8,
+                width: 30,
+                height: 30,
+                cursor: "pointer",
+                fontSize: 14,
+                color: "#64748B",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Description */}
+          {task.description && (
+            <div
+              style={{
+                background: "#F8FAFC",
+                borderRadius: 8,
+                padding: "10px 12px",
+                marginBottom: 16,
+                borderLeft: `3px solid ${cc.border}`,
+              }}
+            >
+              <p style={{ fontSize: 13, color: "#475569", margin: 0, lineHeight: 1.6 }}>{task.description}</p>
+            </div>
+          )}
+
+          {/* Meta grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+            <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Priority</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span
+                  style={{ width: 7, height: 7, borderRadius: "50%", background: pr.dot, display: "inline-block" }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: pr.text }}>{task.priority}</span>
+              </div>
+            </div>
+            <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Status</div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: cs?.label || "#475569" }}>{task.col}</span>
+            </div>
+            {task.assignee && (
+              <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Assignee</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      background: cc.bg,
+                      border: `1.5px solid ${cc.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 8,
+                      fontWeight: 700,
+                      color: cc.text,
+                    }}
+                  >
+                    {getInitials(task.assignee)}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>{task.assignee}</span>
+                </div>
+              </div>
+            )}
+            {task.hours > 0 && (
+              <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Hours</div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>⏱ {task.hours}h</span>
+              </div>
+            )}
+            {task.due && (
+              <div style={{ background: od ? "#FEF2F2" : "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Due date</div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: od ? "#DC2626" : "#334155" }}>
+                  {od ? "⚠ " : ""}
+                  {formatDate(task.due)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <button
+            onClick={onEdit}
+            style={{
+              width: "100%",
+              padding: "11px",
+              borderRadius: 8,
+              border: "none",
+              background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
+            }}
+          >
+            Edit task
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 function Modal({ title, onClose, children, wide }) {
@@ -324,136 +501,204 @@ function TaskForm({
   );
 }
 
-function Popover({ task, clients, onEdit, onClose }) {
-  const ref = useRef();
-  const cc = clientColor(task.client, clients);
-  const pr = PRIORITY_STYLES[task.priority];
-  useEffect(() => {
-    const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
-    setTimeout(() => document.addEventListener("mousedown", h), 0);
-    return () => document.removeEventListener("mousedown", h);
-  }, [onClose]);
+// Shared task card used in both Board and Calendar
+function TaskCard({
+  t,
+  clients,
+  showDescription,
+  onSummary,
+  onEdit,
+  onDelete,
+  draggable: isDraggable,
+  onDragStart,
+  onDragEnd,
+  isDragging,
+}) {
+  const cc = clientColor(t.client, clients);
+  const pr = PRIORITY_STYLES[t.priority];
+  const od = isOverdue(t.due, t.col);
   return (
     <div
-      ref={ref}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onSummary}
       style={{
-        position: "absolute",
-        zIndex: 100,
-        bottom: "calc(100% + 8px)",
-        left: "50%",
-        transform: "translateX(-50%)",
         background: "#fff",
         borderRadius: 12,
-        padding: "14px 16px",
-        width: 220,
-        boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+        padding: "12px 12px 10px",
+        marginBottom: 8,
+        cursor: "pointer",
+        boxShadow: isDragging ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
         border: "1px solid #F1F5F9",
+        borderLeft: `3px solid ${cc.border}`,
+        transform: isDragging ? "rotate(1.5deg) scale(1.02)" : "none",
+        transition: "box-shadow .15s, transform .15s",
+        opacity: isDragging ? 0.85 : 1,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>
-        {task.title}
+      {/* Client + title */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ flex: 1, paddingRight: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: cc.dot,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 500, color: cc.text }}>{t.client}</span>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", lineHeight: 1.4 }}>{t.title}</div>
+        </div>
+        {(onEdit || onDelete) && (
+          <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+            {onEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 5,
+                  border: "none",
+                  background: "#F1F5F9",
+                  cursor: "pointer",
+                  fontSize: 10,
+                  color: "#94A3B8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✎
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 5,
+                  border: "none",
+                  background: "#FEF2F2",
+                  cursor: "pointer",
+                  fontSize: 10,
+                  color: "#FDA4AF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
       </div>
-      {task.description && (
-        <div
+
+      {/* Description (board only) */}
+      {showDescription && t.description && (
+        <p
           style={{
             fontSize: 12,
             color: "#64748B",
-            marginBottom: 10,
+            margin: "0 0 8px",
             lineHeight: 1.5,
-            borderLeft: "2px solid #E2E8F0",
-            paddingLeft: 8,
+            borderLeft: `2px solid ${cc.border}`,
+            paddingLeft: 7,
           }}
         >
-          {task.description}
-        </div>
+          {t.description}
+        </p>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: cc.dot,
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ fontSize: 12, color: "#475569" }}>{task.client}</span>
-        </div>
-        {task.assignee && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 12, color: "#94A3B8" }}>👤</span>
-            <span style={{ fontSize: 12, color: "#475569" }}>{task.assignee}</span>
-          </div>
-        )}
-        {task.hours > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 12, color: "#94A3B8" }}>⏱</span>
-            <span style={{ fontSize: 12, color: "#475569" }}>{task.hours}h</span>
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: pr.dot,
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ fontSize: 12, color: pr.text, fontWeight: 500 }}>{task.priority}</span>
-        </div>
+
+      {/* Pills row */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 500,
             padding: "2px 7px",
             borderRadius: 20,
-            background: COL_STYLES[task.col]?.lightBg || "#F1F5F9",
-            color: COL_STYLES[task.col]?.label || "#475569",
-            alignSelf: "flex-start",
+            background: pr.bg,
+            color: pr.text,
+            display: "flex",
+            alignItems: "center",
+            gap: 3,
           }}
         >
-          {task.col}
+          <span style={{ width: 4, height: 4, borderRadius: "50%", background: pr.dot, display: "inline-block" }} />
+          {t.priority}
         </span>
+        {t.hours > 0 && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              padding: "2px 7px",
+              borderRadius: 20,
+              background: "#F1F5F9",
+              color: "#475569",
+            }}
+          >
+            ⏱ {t.hours}h
+          </span>
+        )}
       </div>
-      <button
-        onClick={onEdit}
-        style={{
-          width: "100%",
-          padding: "7px",
-          borderRadius: 8,
-          border: "1.5px solid #E2E8F0",
-          background: "#F8FAFC",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#6366F1",
-          cursor: "pointer",
-          fontFamily: "inherit",
-        }}
-      >
-        Edit task
-      </button>
-      <div
-        style={{
-          position: "absolute",
-          bottom: -6,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 10,
-          height: 10,
-          background: "#fff",
-          border: "1px solid #F1F5F9",
-          borderTop: "none",
-          borderLeft: "none",
-          rotate: "45deg",
-        }}
-      />
+
+      {/* Footer: assignee + due */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {t.assignee && (
+            <>
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: cc.bg,
+                  border: `1.5px solid ${cc.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 8,
+                  fontWeight: 700,
+                  color: cc.text,
+                }}
+              >
+                {getInitials(t.assignee)}
+              </div>
+              <span style={{ fontSize: 11, color: "#64748B" }}>{t.assignee}</span>
+            </>
+          )}
+        </div>
+        {t.due && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              padding: "2px 6px",
+              borderRadius: 5,
+              background: od ? "#FEF2F2" : "#F1F5F9",
+              color: od ? "#DC2626" : "#64748B",
+            }}
+          >
+            {od ? "⚠ " : ""}
+            {formatDate(t.due)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -561,6 +806,7 @@ export default function App() {
   const [filterPriority, setFilterPriority] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [editForm, setEditForm] = useState({});
   const [newClientInput, setNewClientInput] = useState("");
@@ -568,12 +814,10 @@ export default function App() {
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [calMonth, setCalMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
-  const [popover, setPopover] = useState(null);
   const [confirmRemoveClient, setConfirmRemoveClient] = useState(null);
   const [calDragging, setCalDragging] = useState(null);
   const [calDragOver, setCalDragOver] = useState(null);
 
-  // Load initial data
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -588,7 +832,6 @@ export default function App() {
     load();
   }, []);
 
-  // Real-time subscriptions
   useEffect(() => {
     const tasksSub = supabase
       .channel("tasks-channel")
@@ -599,7 +842,6 @@ export default function App() {
         if (payload.eventType === "DELETE") setTasks((ts) => ts.filter((t) => t.id !== payload.old.id));
       })
       .subscribe();
-
     const clientsSub = supabase
       .channel("clients-channel")
       .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, (payload) => {
@@ -607,7 +849,6 @@ export default function App() {
         if (payload.eventType === "DELETE") setClients((cs) => cs.filter((c) => c !== payload.old.name));
       })
       .subscribe();
-
     return () => {
       supabase.removeChannel(tasksSub);
       supabase.removeChannel(clientsSub);
@@ -636,32 +877,27 @@ export default function App() {
     await supabase.from("clients").insert({ name });
     setInput("");
   }
-
   async function removeClient(name) {
     const remaining = clients.filter((x) => x !== name);
     const fallback = remaining[0] || "";
     await supabase.from("clients").delete().eq("name", name);
-    if (fallback) {
-      await supabase.from("tasks").update({ client: fallback }).eq("client", name);
-    }
+    if (fallback) await supabase.from("tasks").update({ client: fallback }).eq("client", name);
     if (filterClient === name) setFilterClient("All");
     setConfirmRemoveClient(null);
   }
-
   async function addTask() {
     if (!form.title.trim()) return;
-    const payload = { ...form, hours: parseFloat(form.hours) || 0 };
-    await supabase.from("tasks").insert(payload);
+    await supabase.from("tasks").insert({ ...form, hours: parseFloat(form.hours) || 0 });
     setForm({ ...emptyForm, client: clients[0] || "" });
     setShowAdd(false);
   }
-
   function openEdit(t) {
+    setSummary(null);
     setEditing(t.id);
     setEditForm({
       title: t.title,
       client: t.client,
-      assignee: t.assignee,
+      assignee: t.assignee || "",
       priority: t.priority,
       due: t.due || "",
       col: t.col,
@@ -669,7 +905,6 @@ export default function App() {
       description: t.description || "",
     });
   }
-
   async function saveEdit() {
     if (!editForm.title.trim()) return;
     await supabase
@@ -678,19 +913,15 @@ export default function App() {
       .eq("id", editing);
     setEditing(null);
   }
-
   async function deleteTask(id) {
     await supabase.from("tasks").delete().eq("id", id);
   }
-
   async function moveTask(id, col) {
     await supabase.from("tasks").update({ col }).eq("id", id);
   }
-
   async function rescheduleTask(id, due) {
     await supabase.from("tasks").update({ due }).eq("id", id);
   }
-
   function prevMonth() {
     setCalMonth(({ year, month }) => (month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }));
   }
@@ -1010,260 +1241,24 @@ export default function App() {
                     {colTasks.length}
                   </span>
                 </div>
-                {colTasks.map((t) => {
-                  const cc = clientColor(t.client, clients);
-                  const pr = PRIORITY_STYLES[t.priority];
-                  const od = isOverdue(t.due, t.col);
-                  return (
-                    <div
-                      key={t.id}
-                      draggable
-                      onDragStart={() => setDragging(t.id)}
-                      onDragEnd={() => {
-                        setDragging(null);
-                        setDragOver(null);
-                      }}
-                      onClick={() => {
-                        setPopover(popover === t.id ? null : t.id);
-                      }}
-                      style={{
-                        background: "#fff",
-                        borderRadius: 12,
-                        padding: "14px 14px 10px",
-                        marginBottom: 10,
-                        cursor: "grab",
-                        boxShadow: dragging === t.id ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
-                        border: "1px solid #F1F5F9",
-                        borderLeft: `3px solid ${cc.border}`,
-                        transform: dragging === t.id ? "rotate(1.5deg) scale(1.02)" : "none",
-                        transition: "box-shadow .15s,transform .15s",
-                        opacity: dragging === t.id ? 0.85 : 1,
-                        position: "relative",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "space-between",
-                          marginBottom: 6,
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 500,
-                              color: cc.text,
-                              marginBottom: 3,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: "50%",
-                                background: cc.dot,
-                                display: "inline-block",
-                              }}
-                            />
-                            {t.client}
-                          </div>
-                          <span
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: "#0F172A",
-                              lineHeight: 1.4,
-                              flex: 1,
-                              paddingRight: 8,
-                            }}
-                          >
-                            {t.title}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEdit(t);
-                            }}
-                            style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 6,
-                              border: "none",
-                              background: "#F1F5F9",
-                              cursor: "pointer",
-                              fontSize: 11,
-                              color: "#94A3B8",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            ✎
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteTask(t.id);
-                            }}
-                            style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 6,
-                              border: "none",
-                              background: "#FEF2F2",
-                              cursor: "pointer",
-                              fontSize: 11,
-                              color: "#FDA4AF",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                      {popover === t.id && (
-                        <Popover
-                          task={t}
-                          clients={clients}
-                          onEdit={() => {
-                            setPopover(null);
-                            openEdit(t);
-                          }}
-                          onClose={() => setPopover(null)}
-                        />
-                      )}
-                      {t.description && (
-                        <p
-                          style={{
-                            fontSize: 12,
-                            color: "#64748B",
-                            margin: "0 0 8px",
-                            lineHeight: 1.5,
-                            borderLeft: "2px solid #E2E8F0",
-                            paddingLeft: 8,
-                          }}
-                        >
-                          {t.description}
-                        </p>
-                      )}
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            padding: "3px 8px",
-                            borderRadius: 20,
-                            background: cc.bg,
-                            color: cc.text,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 5,
-                              height: 5,
-                              borderRadius: "50%",
-                              background: cc.dot,
-                              display: "inline-block",
-                            }}
-                          />
-                          {t.client}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            padding: "3px 8px",
-                            borderRadius: 20,
-                            background: pr.bg,
-                            color: pr.text,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 5,
-                              height: 5,
-                              borderRadius: "50%",
-                              background: pr.dot,
-                              display: "inline-block",
-                            }}
-                          />
-                          {t.priority}
-                        </span>
-                        {t.hours > 0 && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 500,
-                              padding: "3px 8px",
-                              borderRadius: 20,
-                              background: "#F1F5F9",
-                              color: "#475569",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            ⏱ {t.hours}h
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {t.assignee && (
-                            <div
-                              style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: "50%",
-                                background: cc.bg,
-                                border: `1.5px solid ${cc.border}`,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 9,
-                                fontWeight: 700,
-                                color: cc.text,
-                              }}
-                            >
-                              {getInitials(t.assignee)}
-                            </div>
-                          )}
-                          {t.assignee && <span style={{ fontSize: 12, color: "#64748B" }}>{t.assignee}</span>}
-                        </div>
-                        {t.due && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 500,
-                              padding: "2px 7px",
-                              borderRadius: 6,
-                              background: od ? "#FEF2F2" : "#F1F5F9",
-                              color: od ? "#DC2626" : "#64748B",
-                            }}
-                          >
-                            {od ? "⚠ " : ""}
-                            {formatDate(t.due)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                {colTasks.map((t) => (
+                  <TaskCard
+                    key={t.id}
+                    t={t}
+                    clients={clients}
+                    showDescription
+                    onSummary={() => setSummary(t)}
+                    onEdit={() => openEdit(t)}
+                    onDelete={() => deleteTask(t.id)}
+                    draggable
+                    isDragging={dragging === t.id}
+                    onDragStart={() => setDragging(t.id)}
+                    onDragEnd={() => {
+                      setDragging(null);
+                      setDragOver(null);
+                    }}
+                  />
+                ))}
                 {colTasks.length === 0 && (
                   <div style={{ textAlign: "center", padding: "24px 0", color: "#CBD5E1", fontSize: 13 }}>
                     Drop tasks here
@@ -1380,7 +1375,6 @@ export default function App() {
                     padding: "6px 6px 4px",
                     cursor: "pointer",
                     transition: "background .1s,border .1s",
-                    position: "relative",
                   }}
                 >
                   <div
@@ -1400,86 +1394,30 @@ export default function App() {
                   >
                     {day.getDate()}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {dayTasks.slice(0, 3).map((t) => {
-                      const cc = clientColor(t.client, clients);
-                      const isOpen = popover === t.id;
-                      return (
-                        <div key={t.id} style={{ position: "relative" }}>
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.stopPropagation();
-                              setCalDragging(t.id);
-                            }}
-                            onDragEnd={() => {
-                              setCalDragging(null);
-                              setCalDragOver(null);
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPopover(isOpen ? null : t.id);
-                            }}
-                            style={{
-                              padding: "4px 6px",
-                              borderRadius: 5,
-                              cursor: "grab",
-                              background: cc.bg,
-                              borderLeft: `2px solid ${cc.border}`,
-                              opacity: calDragging === t.id ? 0.5 : 1,
-                              transition: "opacity .1s",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: cc.text,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                lineHeight: 1.3,
-                              }}
-                            >
-                              {t.title}
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  color: cc.text,
-                                  opacity: 0.75,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  flex: 1,
-                                }}
-                              >
-                                {t.client}
-                              </span>
-                              {t.hours > 0 && (
-                                <span
-                                  style={{ fontSize: 9, fontWeight: 600, color: cc.text, opacity: 0.9, flexShrink: 0 }}
-                                >
-                                  ⏱{t.hours}h
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {isOpen && (
-                            <Popover
-                              task={t}
-                              clients={clients}
-                              onEdit={() => {
-                                setPopover(null);
-                                openEdit(t);
-                              }}
-                              onClose={() => setPopover(null)}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {dayTasks.slice(0, 3).map((t) => (
+                      <div
+                        key={t.id}
+                        onClick={(e) => e.stopPropagation()}
+                        draggable
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          setCalDragging(t.id);
+                        }}
+                        onDragEnd={() => {
+                          setCalDragging(null);
+                          setCalDragOver(null);
+                        }}
+                      >
+                        <TaskCard
+                          t={t}
+                          clients={clients}
+                          showDescription={false}
+                          onSummary={() => setSummary(t)}
+                          isDragging={calDragging === t.id}
+                        />
+                      </div>
+                    ))}
                     {dayTasks.length > 3 && (
                       <div style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8", paddingLeft: 4 }}>
                         +{dayTasks.length - 3} more
@@ -1507,7 +1445,7 @@ export default function App() {
                   return (
                     <div
                       key={t.id}
-                      onClick={() => openEdit(t)}
+                      onClick={() => setSummary(t)}
                       style={{
                         padding: "5px 10px",
                         borderRadius: 8,
@@ -1540,6 +1478,16 @@ export default function App() {
       )}
 
       {view === "hours" && <HoursSummary tasks={tasks} clients={clients} />}
+
+      {/* Task summary modal */}
+      {summary && (
+        <TaskSummary
+          task={summary}
+          clients={clients}
+          onEdit={() => openEdit(summary)}
+          onClose={() => setSummary(null)}
+        />
+      )}
 
       {confirmRemoveClient && (
         <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
