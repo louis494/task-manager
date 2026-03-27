@@ -1023,6 +1023,9 @@ export default function App() {
                         setDragging(null);
                         setDragOver(null);
                       }}
+                      onClick={() => {
+                        setPopover(popover === t.id ? null : t.id);
+                      }}
                       style={{
                         background: "#fff",
                         borderRadius: 12,
@@ -1035,6 +1038,7 @@ export default function App() {
                         transform: dragging === t.id ? "rotate(1.5deg) scale(1.02)" : "none",
                         transition: "box-shadow .15s,transform .15s",
                         opacity: dragging === t.id ? 0.85 : 1,
+                        position: "relative",
                       }}
                     >
                       <div
@@ -1045,21 +1049,48 @@ export default function App() {
                           marginBottom: 6,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: "#0F172A",
-                            lineHeight: 1.4,
-                            flex: 1,
-                            paddingRight: 8,
-                          }}
-                        >
-                          {t.title}
-                        </span>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              color: cc.text,
+                              marginBottom: 3,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 5,
+                                height: 5,
+                                borderRadius: "50%",
+                                background: cc.dot,
+                                display: "inline-block",
+                              }}
+                            />
+                            {t.client}
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: "#0F172A",
+                              lineHeight: 1.4,
+                              flex: 1,
+                              paddingRight: 8,
+                            }}
+                          >
+                            {t.title}
+                          </span>
+                        </div>
                         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                           <button
-                            onClick={() => openEdit(t)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(t);
+                            }}
                             style={{
                               width: 22,
                               height: 22,
@@ -1077,7 +1108,10 @@ export default function App() {
                             ✎
                           </button>
                           <button
-                            onClick={() => deleteTask(t.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTask(t.id);
+                            }}
                             style={{
                               width: 22,
                               height: 22,
@@ -1096,6 +1130,17 @@ export default function App() {
                           </button>
                         </div>
                       </div>
+                      {popover === t.id && (
+                        <Popover
+                          task={t}
+                          clients={clients}
+                          onEdit={() => {
+                            setPopover(null);
+                            openEdit(t);
+                          }}
+                          onClose={() => setPopover(null)}
+                        />
+                      )}
                       {t.description && (
                         <p
                           style={{
