@@ -1,21 +1,28 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 const CLIENT_COLORS = [
-  { bg: "#E6F1FB", border: "#378ADD", text: "#0C447C", dot: "#378ADD" },
-  { bg: "#E1F5EE", border: "#1D9E75", text: "#085041", dot: "#1D9E75" },
-  { bg: "#FAEEDA", border: "#BA7517", text: "#633806", dot: "#EF9F27" },
-  { bg: "#EEEDFE", border: "#7F77DD", text: "#3C3489", dot: "#7F77DD" },
-  { bg: "#FBEAF0", border: "#D4537E", text: "#72243E", dot: "#D4537E" },
-  { bg: "#FAECE7", border: "#D85A30", text: "#712B13", dot: "#D85A30" },
+  { bg: "#EFF6FF", border: "#3B82F6", text: "#1D4ED8", dot: "#3B82F6" },
+  { bg: "#F0FDF4", border: "#22C55E", text: "#15803D", dot: "#22C55E" },
+  { bg: "#FFF7ED", border: "#F97316", text: "#C2410C", dot: "#F97316" },
+  { bg: "#FAF5FF", border: "#A855F7", text: "#7E22CE", dot: "#A855F7" },
+  { bg: "#FFF1F2", border: "#F43F5E", text: "#BE123C", dot: "#F43F5E" },
+  { bg: "#ECFEFF", border: "#06B6D4", text: "#0E7490", dot: "#06B6D4" },
 ];
 
-const PRIORITY = {
-  High: { bg: "#FCEBEB", text: "#A32D2D", border: "#F09595" },
-  Medium: { bg: "#FAEEDA", text: "#854F0B", border: "#FAC775" },
-  Low: { bg: "#EAF3DE", text: "#3B6D11", border: "#C0DD97" },
+const PRIORITY_STYLES = {
+  High: { bg: "#FEF2F2", text: "#DC2626", dot: "#EF4444" },
+  Medium: { bg: "#FFFBEB", text: "#D97706", dot: "#F59E0B" },
+  Low: { bg: "#F0FDF4", text: "#16A34A", dot: "#22C55E" },
 };
 
 const COLUMNS = ["To Do", "In Progress", "Done"];
+
+const COL_STYLES = {
+  "To Do": { accent: "#6366F1", lightBg: "#EEF2FF", label: "#4338CA" },
+  "In Progress": { accent: "#F59E0B", lightBg: "#FFFBEB", label: "#B45309" },
+  Done: { accent: "#10B981", lightBg: "#ECFDF5", label: "#047857" },
+};
 
 const initClients = ["Acme Corp", "BrightSpark", "Novo Agency"];
 
@@ -78,13 +85,15 @@ const initTasks = [
 
 let nextId = 7;
 
+const emptyForm = { title: "", client: initClients[0], assignee: "", priority: "Medium", due: "", col: "To Do" };
+
 function clientColor(name, clients) {
   const idx = clients.indexOf(name);
   return CLIENT_COLORS[idx % CLIENT_COLORS.length];
 }
 
-function isOverdue(due) {
-  if (!due) return false;
+function isOverdue(due, col) {
+  if (!due || col === "Done") return false;
   return new Date(due) < new Date(new Date().toDateString());
 }
 
@@ -94,17 +103,257 @@ function formatDate(d) {
   return `${day}/${m}/${y.slice(2)}`;
 }
 
+function getInitials(name) {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.5)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: "28px 28px 24px",
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 25px 50px rgba(0,0,0,0.2)",
+          boxSizing: "border-box",
+          animation: "slideUp .18s ease",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>{title}</span>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#F1F5F9",
+              border: "none",
+              borderRadius: 8,
+              width: 28,
+              height: 28,
+              cursor: "pointer",
+              fontSize: 14,
+              color: "#64748B",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function TaskForm({
+  form,
+  setForm,
+  clients,
+  onSave,
+  onCancel,
+  saveLabel,
+  newClientInput,
+  setNewClientInput,
+  onAddClient,
+}) {
+  return (
+    <div>
+      <style>{`
+        .tf-input { width:100%; padding:9px 12px; border-radius:8px; border:1.5px solid #E2E8F0;
+          font-size:14px; color:#0F172A; background:#F8FAFC; box-sizing:border-box;
+          outline:none; transition:border .15s; font-family:inherit; }
+        .tf-input:focus { border-color:#6366F1; background:#fff; }
+        .tf-label { font-size:12px; font-weight:500; color:#64748B; margin-bottom:4px; display:block; }
+        .tf-field { margin-bottom:14px; }
+        .tf-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+      `}</style>
+
+      <div className="tf-field">
+        <label className="tf-label">Title</label>
+        <input
+          className="tf-input"
+          placeholder="Task name"
+          value={form.title}
+          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+        />
+      </div>
+
+      <div className="tf-field">
+        <label className="tf-label">Client</label>
+        <select
+          className="tf-input"
+          value={form.client}
+          onChange={(e) => setForm((f) => ({ ...f, client: e.target.value }))}
+        >
+          {clients.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="tf-field" style={{ display: "flex", gap: 8 }}>
+        <input
+          className="tf-input"
+          style={{ flex: 1, marginBottom: 0 }}
+          placeholder="New client..."
+          value={newClientInput}
+          onChange={(e) => setNewClientInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onAddClient()}
+        />
+        <button
+          onClick={onAddClient}
+          style={{
+            padding: "9px 14px",
+            borderRadius: 8,
+            border: "1.5px solid #E2E8F0",
+            background: "#F8FAFC",
+            fontSize: 13,
+            color: "#6366F1",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            fontFamily: "inherit",
+          }}
+        >
+          + Add
+        </button>
+      </div>
+
+      <div className="tf-grid">
+        <div className="tf-field">
+          <label className="tf-label">Assignee</label>
+          <input
+            className="tf-input"
+            placeholder="Name"
+            value={form.assignee}
+            onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
+          />
+        </div>
+        <div className="tf-field">
+          <label className="tf-label">Priority</label>
+          <select
+            className="tf-input"
+            value={form.priority}
+            onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+          >
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="tf-grid">
+        <div className="tf-field">
+          <label className="tf-label">Due date</label>
+          <input
+            type="date"
+            className="tf-input"
+            value={form.due}
+            onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))}
+          />
+        </div>
+        <div className="tf-field">
+          <label className="tf-label">Status</label>
+          <select
+            className="tf-input"
+            value={form.col}
+            onChange={(e) => setForm((f) => ({ ...f, col: e.target.value }))}
+          >
+            {COLUMNS.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 8,
+            border: "1.5px solid #E2E8F0",
+            background: "#F8FAFC",
+            color: "#64748B",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSave}
+          style={{
+            flex: 2,
+            padding: "10px",
+            borderRadius: 8,
+            border: "none",
+            background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            boxShadow: "0 4px 12px rgba(99,102,241,0.35)",
+          }}
+        >
+          {saveLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tasks, setTasks] = useState(initTasks);
   const [clients, setClients] = useState(initClients);
   const [filterClient, setFilterClient] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
-  const [newClientInput, setNewClientInput] = useState("");
-  const [form, setForm] = useState({ title: "", client: initClients[0], assignee: "", priority: "Medium", due: "" });
-  const [dragging, setDragging] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ ...emptyForm });
   const [editForm, setEditForm] = useState({});
+  const [newClientInput, setNewClientInput] = useState("");
+  const [dragging, setDragging] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
 
   const filtered = useMemo(
     () =>
@@ -120,23 +369,19 @@ export default function App() {
   const done = tasks.filter((t) => t.col === "Done").length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
+  function addClient(input, setInput, setF) {
+    const name = input.trim();
+    if (!name || clients.includes(name)) return;
+    setClients((c) => [...c, name]);
+    setF((f) => ({ ...f, client: name }));
+    setInput("");
+  }
+
   function addTask() {
     if (!form.title.trim()) return;
     setTasks((t) => [...t, { ...form, id: nextId++ }]);
-    setForm({ title: "", client: clients[0], assignee: "", priority: "Medium", due: "" });
+    setForm({ ...emptyForm, client: clients[0] });
     setShowAdd(false);
-  }
-
-  function addClient() {
-    const name = newClientInput.trim();
-    if (!name || clients.includes(name)) return;
-    setClients((c) => [...c, name]);
-    setForm((f) => ({ ...f, client: name }));
-    setNewClientInput("");
-  }
-
-  function moveTask(id, col) {
-    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
   }
 
   function openEdit(t) {
@@ -160,483 +405,466 @@ export default function App() {
   function deleteTask(id) {
     setTasks((ts) => ts.filter((t) => t.id !== id));
   }
+  function moveTask(id, col) {
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
+  }
 
-  const s = {
-    root: {
-      fontFamily: "var(--font-sans)",
-      padding: "1.25rem 1rem",
-      maxWidth: 900,
-      margin: "0 auto",
-      position: "relative",
-    },
-    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-    h1: { fontSize: 18, fontWeight: 500, color: "var(--color-text-primary)", margin: 0 },
-    progressBar: {
-      background: "var(--color-border-tertiary)",
-      borderRadius: 4,
-      height: 6,
-      flex: 1,
-      margin: "0 12px",
-      overflow: "hidden",
-    },
-    progressFill: { height: "100%", borderRadius: 4, background: "#1D9E75", transition: "width .3s" },
-    pct: { fontSize: 13, color: "var(--color-text-secondary)", minWidth: 32, textAlign: "right" },
-    filters: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" },
-    select: {
-      fontSize: 13,
-      padding: "4px 8px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "var(--color-background-primary)",
-      color: "var(--color-text-primary)",
-      cursor: "pointer",
-    },
-    addBtn: {
-      fontSize: 13,
-      padding: "4px 12px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "var(--color-background-primary)",
-      color: "var(--color-text-primary)",
-      cursor: "pointer",
-      marginLeft: "auto",
-    },
-    board: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 12 },
-    col: {
-      background: "var(--color-background-secondary)",
-      borderRadius: "var(--border-radius-lg)",
-      padding: "10px 10px",
-      minHeight: 200,
-    },
-    colHead: {
-      fontSize: 13,
-      fontWeight: 500,
-      color: "var(--color-text-secondary)",
-      marginBottom: 10,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    badge: {
-      fontSize: 11,
-      fontWeight: 500,
-      background: "var(--color-background-primary)",
-      border: "0.5px solid var(--color-border-tertiary)",
-      borderRadius: 10,
-      padding: "1px 7px",
-      color: "var(--color-text-secondary)",
-    },
-    card: {
-      background: "var(--color-background-primary)",
-      border: "0.5px solid var(--color-border-tertiary)",
-      borderRadius: "var(--border-radius-md)",
-      padding: "10px 12px",
-      marginBottom: 8,
-      cursor: "grab",
-      position: "relative",
-    },
-    cardTitle: { fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 6 },
-    cardRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
-    clientPill: {
-      fontSize: 11,
-      fontWeight: 500,
-      borderRadius: 10,
-      padding: "2px 8px",
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-    },
-    dot: { width: 6, height: 6, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
-    priPill: { fontSize: 11, fontWeight: 500, borderRadius: 10, padding: "2px 8px" },
-    meta: { fontSize: 11, color: "var(--color-text-secondary)", marginTop: 6, display: "flex", gap: 8 },
-    overdue: { color: "#A32D2D", fontWeight: 500 },
-    del: {
-      position: "absolute",
-      top: 6,
-      right: 8,
-      fontSize: 13,
-      color: "var(--color-text-secondary)",
-      cursor: "pointer",
-      opacity: 0.5,
-      lineHeight: 1,
-    },
-    modal: {
-      position: "absolute",
-      inset: 0,
-      background: "rgba(0,0,0,0.4)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 100,
-      minHeight: "100%",
-    },
-    modalBox: {
-      background: "var(--color-background-primary)",
-      border: "0.5px solid var(--color-border-primary)",
-      borderRadius: "var(--border-radius-lg)",
-      padding: "1.25rem",
-      width: 320,
-      boxSizing: "border-box",
-    },
-    label: { fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 3, display: "block" },
-    input: {
-      width: "100%",
-      fontSize: 13,
-      padding: "6px 8px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "var(--color-background-secondary)",
-      color: "var(--color-text-primary)",
-      boxSizing: "border-box",
-      marginBottom: 10,
-    },
-    row2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-    modalBtns: { display: "flex", gap: 8, marginTop: 4 },
-    cancelBtn: {
-      flex: 1,
-      fontSize: 13,
-      padding: "6px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "transparent",
-      color: "var(--color-text-primary)",
-      cursor: "pointer",
-    },
-    saveBtn: {
-      flex: 1,
-      fontSize: 13,
-      padding: "6px",
-      borderRadius: "var(--border-radius-md)",
-      border: "none",
-      background: "#1D9E75",
-      color: "#fff",
-      fontWeight: 500,
-      cursor: "pointer",
-    },
-    newClientRow: { display: "flex", gap: 6, marginBottom: 10 },
-    newClientInput: {
-      flex: 1,
-      fontSize: 13,
-      padding: "6px 8px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "var(--color-background-primary)",
-      color: "var(--color-text-primary)",
-      boxSizing: "border-box",
-    },
-    newClientBtn: {
-      fontSize: 12,
-      padding: "6px 10px",
-      borderRadius: "var(--border-radius-md)",
-      border: "0.5px solid var(--color-border-secondary)",
-      background: "var(--color-background-secondary)",
-      color: "var(--color-text-primary)",
-      cursor: "pointer",
-      whiteSpace: "nowrap",
-    },
-    moveSelect: {
-      fontSize: 11,
-      border: "none",
-      background: "transparent",
-      color: "var(--color-text-secondary)",
-      cursor: "pointer",
-      padding: 0,
-      marginTop: 4,
-    },
-  };
+  const [newClientInputEdit, setNewClientInputEdit] = useState("");
 
   return (
-    <div style={s.root}>
-      <div style={s.header}>
-        <span style={s.h1}>Team tasks</span>
-        <div style={{ display: "flex", alignItems: "center", flex: 1, margin: "0 16px" }}>
-          <div style={s.progressBar}>
-            <div style={{ ...s.progressFill, width: `${pct}%` }} />
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#F8FAFC",
+        fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      }}
+    >
+      <style>{`
+        @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        * { box-sizing:border-box; }
+        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+      `}</style>
+
+      {/* Header */}
+      <div
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #E2E8F0",
+          padding: "0 32px",
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" opacity=".9" />
+              <rect x="9" y="1" width="6" height="6" rx="1.5" fill="white" opacity=".6" />
+              <rect x="1" y="9" width="6" height="6" rx="1.5" fill="white" opacity=".6" />
+              <rect x="9" y="9" width="6" height="6" rx="1.5" fill="white" opacity=".3" />
+            </svg>
           </div>
-          <span style={s.pct}>{pct}%</span>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Task Board</span>
         </div>
-        <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
-          {done}/{total} done
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "#F1F5F9",
+              borderRadius: 8,
+              padding: "6px 12px",
+            }}
+          >
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
+            <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{pct}% complete</span>
+            <span style={{ fontSize: 12, color: "#94A3B8" }}>
+              {done}/{total} tasks
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setForm({ ...emptyForm, client: clients[0] });
+              setShowAdd(true);
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              border: "none",
+              background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
+            }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add task
+          </button>
+        </div>
       </div>
 
-      <div style={s.filters}>
-        <select style={s.select} value={filterClient} onChange={(e) => setFilterClient(e.target.value)}>
+      {/* Progress bar */}
+      <div style={{ height: 3, background: "#E2E8F0" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: "linear-gradient(90deg,#6366F1,#10B981)",
+            transition: "width .4s ease",
+          }}
+        />
+      </div>
+
+      {/* Filters */}
+      <div style={{ padding: "16px 32px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <select
+          value={filterClient}
+          onChange={(e) => setFilterClient(e.target.value)}
+          style={{
+            padding: "7px 12px",
+            borderRadius: 8,
+            border: "1.5px solid #E2E8F0",
+            background: "#fff",
+            fontSize: 13,
+            color: "#334155",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            outline: "none",
+          }}
+        >
           <option>All</option>
           {clients.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </select>
-        <select style={s.select} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value)}
+          style={{
+            padding: "7px 12px",
+            borderRadius: 8,
+            border: "1.5px solid #E2E8F0",
+            background: "#fff",
+            fontSize: 13,
+            color: "#334155",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            outline: "none",
+          }}
+        >
           <option>All</option>
           <option>High</option>
           <option>Medium</option>
           <option>Low</option>
         </select>
-        {/* Client colour legend */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 4 }}>
+        <div style={{ display: "flex", gap: 8, marginLeft: 4, flexWrap: "wrap" }}>
           {clients.map((c, i) => {
-            const col = CLIENT_COLORS[i % CLIENT_COLORS.length];
+            const cc = CLIENT_COLORS[i % CLIENT_COLORS.length];
             return (
               <div
                 key={c}
+                onClick={() => setFilterClient(filterClient === c ? "All" : c)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
-                  fontSize: 11,
-                  color: "var(--color-text-secondary)",
+                  gap: 5,
+                  padding: "5px 10px",
+                  borderRadius: 20,
+                  background: filterClient === c ? cc.bg : "#fff",
+                  border: `1.5px solid ${filterClient === c ? cc.border : "#E2E8F0"}`,
+                  cursor: "pointer",
+                  transition: "all .15s",
                 }}
               >
                 <span
-                  style={{ width: 8, height: 8, borderRadius: "50%", background: col.dot, display: "inline-block" }}
+                  style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
                 />
-                {c}
+                <span style={{ fontSize: 12, fontWeight: 500, color: filterClient === c ? cc.text : "#64748B" }}>
+                  {c}
+                </span>
               </div>
             );
           })}
         </div>
-        <button style={s.addBtn} onClick={() => setShowAdd(true)}>
-          + Add task
-        </button>
       </div>
 
-      <div style={s.board}>
+      {/* Board */}
+      <div
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 20, padding: "0 32px 32px" }}
+      >
         {COLUMNS.map((col) => {
+          const cs = COL_STYLES[col];
           const colTasks = filtered.filter((t) => t.col === col);
+          const isDragTarget = dragOver === col;
           return (
             <div
               key={col}
-              style={s.col}
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(col);
+              }}
+              onDragLeave={() => setDragOver(null)}
               onDrop={(e) => {
                 e.preventDefault();
                 if (dragging !== null) moveTask(dragging, col);
                 setDragging(null);
+                setDragOver(null);
+              }}
+              style={{
+                background: isDragTarget ? cs.lightBg : "#F1F5F9",
+                borderRadius: 14,
+                padding: 16,
+                minHeight: 300,
+                border: `2px dashed ${isDragTarget ? cs.accent : "transparent"}`,
+                transition: "all .15s",
               }}
             >
-              <div style={s.colHead}>
-                <span>{col}</span>
-                <span style={s.badge}>{colTasks.length}</span>
+              {/* Column header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: cs.accent }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{col}</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: cs.lightBg,
+                    color: cs.label,
+                    border: `1px solid ${cs.accent}33`,
+                  }}
+                >
+                  {colTasks.length}
+                </span>
               </div>
+
+              {/* Tasks */}
               {colTasks.map((t) => {
                 const cc = clientColor(t.client, clients);
-                const pr = PRIORITY[t.priority];
-                const od = isOverdue(t.due) && t.col !== "Done";
+                const pr = PRIORITY_STYLES[t.priority];
+                const od = isOverdue(t.due, t.col);
                 return (
                   <div
                     key={t.id}
-                    style={{ ...s.card, borderLeft: `3px solid ${cc.border}` }}
                     draggable
                     onDragStart={() => setDragging(t.id)}
-                    onDragEnd={() => setDragging(null)}
+                    onDragEnd={() => {
+                      setDragging(null);
+                      setDragOver(null);
+                    }}
+                    style={{
+                      background: "#fff",
+                      borderRadius: 12,
+                      padding: "14px 14px 10px",
+                      marginBottom: 10,
+                      cursor: "grab",
+                      boxShadow: dragging === t.id ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+                      border: "1px solid #F1F5F9",
+                      borderLeft: `3px solid ${cc.border}`,
+                      transform: dragging === t.id ? "rotate(1.5deg) scale(1.02)" : "none",
+                      transition: "box-shadow .15s, transform .15s",
+                      opacity: dragging === t.id ? 0.85 : 1,
+                    }}
                   >
-                    <span style={s.del} onClick={() => deleteTask(t.id)}>
-                      ✕
-                    </span>
-                    <span style={{ ...s.del, right: 24, opacity: 0.4 }} onClick={() => openEdit(t)}>
-                      ✎
-                    </span>
-                    <div style={s.cardTitle}>{t.title}</div>
-                    <div style={s.cardRow}>
-                      <span style={{ ...s.clientPill, background: cc.bg, color: cc.text }}>
-                        <span style={{ ...s.dot, background: cc.dot }} />
+                    {/* Card top row */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: "#0F172A",
+                          lineHeight: 1.4,
+                          flex: 1,
+                          paddingRight: 8,
+                        }}
+                      >
+                        {t.title}
+                      </span>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => openEdit(t)}
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            border: "none",
+                            background: "#F1F5F9",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            color: "#94A3B8",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => deleteTask(t.id)}
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            border: "none",
+                            background: "#FEF2F2",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            color: "#FDA4AF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pills */}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          padding: "3px 8px",
+                          borderRadius: 20,
+                          background: cc.bg,
+                          color: cc.text,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: "50%",
+                            background: cc.dot,
+                            display: "inline-block",
+                          }}
+                        />
                         {t.client}
                       </span>
                       <span
-                        style={{ ...s.priPill, background: pr.bg, color: pr.text, border: `0.5px solid ${pr.border}` }}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          padding: "3px 8px",
+                          borderRadius: 20,
+                          background: pr.bg,
+                          color: pr.text,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
                       >
+                        <span
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: "50%",
+                            background: pr.dot,
+                            display: "inline-block",
+                          }}
+                        />
                         {t.priority}
                       </span>
                     </div>
-                    <div style={s.meta}>
-                      {t.assignee && <span>👤 {t.assignee}</span>}
+
+                    {/* Footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {t.assignee && (
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: "50%",
+                              background: `${cc.bg}`,
+                              border: `1.5px solid ${cc.border}`,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: cc.text,
+                            }}
+                          >
+                            {getInitials(t.assignee)}
+                          </div>
+                        )}
+                        {t.assignee && <span style={{ fontSize: 12, color: "#64748B" }}>{t.assignee}</span>}
+                      </div>
                       {t.due && (
-                        <span style={od ? s.overdue : {}}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 500,
+                            padding: "2px 7px",
+                            borderRadius: 6,
+                            background: od ? "#FEF2F2" : "#F1F5F9",
+                            color: od ? "#DC2626" : "#64748B",
+                          }}
+                        >
                           {od ? "⚠ " : ""}
                           {formatDate(t.due)}
                         </span>
                       )}
                     </div>
-                    <select style={s.moveSelect} value={col} onChange={(e) => moveTask(t.id, e.target.value)}>
-                      {COLUMNS.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 );
               })}
+
+              {colTasks.length === 0 && (
+                <div style={{ textAlign: "center", padding: "24px 0", color: "#CBD5E1", fontSize: 13 }}>
+                  Drop tasks here
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {editing !== null && (
-        <div
-          style={s.modal}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditing(null);
-          }}
-        >
-          <div style={s.modalBox}>
-            <p style={{ fontSize: 15, fontWeight: 500, margin: "0 0 14px", color: "var(--color-text-primary)" }}>
-              Edit task
-            </p>
-            <label style={s.label}>Title</label>
-            <input
-              style={s.input}
-              value={editForm.title}
-              onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-            />
-            <label style={s.label}>Client</label>
-            <select
-              style={s.input}
-              value={editForm.client}
-              onChange={(e) => setEditForm((f) => ({ ...f, client: e.target.value }))}
-            >
-              {clients.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <div style={s.row2}>
-              <div>
-                <label style={s.label}>Assignee</label>
-                <input
-                  style={s.input}
-                  value={editForm.assignee}
-                  onChange={(e) => setEditForm((f) => ({ ...f, assignee: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label style={s.label}>Priority</label>
-                <select
-                  style={s.input}
-                  value={editForm.priority}
-                  onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value }))}
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </div>
-            </div>
-            <div style={s.row2}>
-              <div>
-                <label style={s.label}>Due date</label>
-                <input
-                  type="date"
-                  style={s.input}
-                  value={editForm.due}
-                  onChange={(e) => setEditForm((f) => ({ ...f, due: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label style={s.label}>Status</label>
-                <select
-                  style={s.input}
-                  value={editForm.col}
-                  onChange={(e) => setEditForm((f) => ({ ...f, col: e.target.value }))}
-                >
-                  {COLUMNS.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div style={s.modalBtns}>
-              <button style={s.cancelBtn} onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-              <button style={s.saveBtn} onClick={saveEdit}>
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Add Modal */}
+      {showAdd && (
+        <Modal title="New task" onClose={() => setShowAdd(false)}>
+          <TaskForm
+            form={form}
+            setForm={setForm}
+            clients={clients}
+            onSave={addTask}
+            onCancel={() => setShowAdd(false)}
+            saveLabel="Add task"
+            newClientInput={newClientInput}
+            setNewClientInput={setNewClientInput}
+            onAddClient={() => addClient(newClientInput, setNewClientInput, setForm)}
+          />
+        </Modal>
       )}
 
-      {showAdd && (
-        <div
-          style={s.modal}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAdd(false);
-          }}
-        >
-          <div style={s.modalBox}>
-            <p style={{ fontSize: 15, fontWeight: 500, margin: "0 0 14px", color: "var(--color-text-primary)" }}>
-              New task
-            </p>
-            <label style={s.label}>Title</label>
-            <input
-              style={s.input}
-              placeholder="Task name"
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            />
-            <label style={s.label}>Client</label>
-            <select
-              style={{ ...s.input, marginBottom: 6 }}
-              value={form.client}
-              onChange={(e) => setForm((f) => ({ ...f, client: e.target.value }))}
-            >
-              {clients.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <div style={s.newClientRow}>
-              <input
-                style={s.newClientInput}
-                placeholder="New client name..."
-                value={newClientInput}
-                onChange={(e) => setNewClientInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addClient()}
-              />
-              <button style={s.newClientBtn} onClick={addClient}>
-                + Add
-              </button>
-            </div>
-            <div style={s.row2}>
-              <div>
-                <label style={s.label}>Assignee</label>
-                <input
-                  style={s.input}
-                  placeholder="Name"
-                  value={form.assignee}
-                  onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label style={s.label}>Priority</label>
-                <select
-                  style={s.input}
-                  value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </div>
-            </div>
-            <label style={s.label}>Due date</label>
-            <input
-              type="date"
-              style={s.input}
-              value={form.due}
-              onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))}
-            />
-            <div style={s.modalBtns}>
-              <button style={s.cancelBtn} onClick={() => setShowAdd(false)}>
-                Cancel
-              </button>
-              <button style={s.saveBtn} onClick={addTask}>
-                Add task
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Edit Modal */}
+      {editing !== null && (
+        <Modal title="Edit task" onClose={() => setEditing(null)}>
+          <TaskForm
+            form={editForm}
+            setForm={setEditForm}
+            clients={clients}
+            onSave={saveEdit}
+            onCancel={() => setEditing(null)}
+            saveLabel="Save changes"
+            newClientInput={newClientInputEdit}
+            setNewClientInput={setNewClientInputEdit}
+            onAddClient={() => addClient(newClientInputEdit, setNewClientInputEdit, setEditForm)}
+          />
+        </Modal>
       )}
     </div>
   );
