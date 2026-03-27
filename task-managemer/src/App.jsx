@@ -118,12 +118,14 @@ function getInitials(name) {
     .slice(0, 2);
 }
 function toYMD(date) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 function getMonthGrid(year, month) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  // Monday-based: Mon=0...Sun=6
   const startOffset = (firstDay.getDay() + 6) % 7;
   const cells = [];
   for (let i = 0; i < startOffset; i++) cells.push(null);
@@ -461,6 +463,8 @@ function Popover({ task, clients, onEdit, onClose }) {
 }
 
 export default function App() {
+  const today = toYMD(new Date());
+
   const [tasks, setTasks] = useState(initTasks);
   const [clients, setClients] = useState(initClients);
   const [view, setView] = useState("board");
@@ -474,11 +478,11 @@ export default function App() {
   const [newClientInputEdit, setNewClientInputEdit] = useState("");
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
-  const [calMonth, setCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }));
+  const [calMonth, setCalMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
   const [popover, setPopover] = useState(null);
   const [confirmRemoveClient, setConfirmRemoveClient] = useState(null);
-
-  const today = toYMD(new Date());
+  const [calDragging, setCalDragging] = useState(null);
+  const [calDragOver, setCalDragOver] = useState(null);
 
   const filtered = useMemo(
     () =>
@@ -493,8 +497,8 @@ export default function App() {
   const total = tasks.length;
   const done = tasks.filter((t) => t.col === "Done").length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
-
   const monthGrid = useMemo(() => getMonthGrid(calMonth.year, calMonth.month), [calMonth]);
+  const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
 
   function addClient(input, setInput, setF) {
     const name = input.trim();
@@ -503,21 +507,18 @@ export default function App() {
     setF((f) => ({ ...f, client: name }));
     setInput("");
   }
-
   function removeClient(name) {
-    setClients((c) => c.filter((x) => x !== name));
-    // Reassign tasks belonging to removed client to first remaining client
     const remaining = clients.filter((x) => x !== name);
     const fallback = remaining[0] || "";
+    setClients(remaining);
     setTasks((ts) => ts.map((t) => (t.client === name ? { ...t, client: fallback } : t)));
     if (filterClient === name) setFilterClient("All");
     setConfirmRemoveClient(null);
   }
-
   function addTask() {
     if (!form.title.trim()) return;
     setTasks((t) => [...t, { ...form, id: nextId++ }]);
-    setForm({ ...emptyForm, client: clients[0] });
+    setForm({ ...emptyForm, client: clients[0] || "" });
     setShowAdd(false);
   }
   function openEdit(t) {
@@ -542,9 +543,6 @@ export default function App() {
   function moveTask(id, col) {
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
   }
-
-  const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
-
   function prevMonth() {
     setCalMonth(({ year, month }) => (month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }));
   }
@@ -675,7 +673,7 @@ export default function App() {
         />
       </div>
 
-      {/* Filters + client pills with remove */}
+      {/* Filters */}
       <div style={{ padding: "16px 32px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <select
           value={filterClient}
@@ -1013,10 +1011,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Calendar view — monthly */}
+      {/* Calendar view */}
       {view === "calendar" && (
         <div style={{ padding: "0 32px 32px" }}>
-          {/* Month nav */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <button
               onClick={prevMonth}
@@ -1074,8 +1071,6 @@ export default function App() {
               {MONTH_NAMES[calMonth.month]} {calMonth.year}
             </span>
           </div>
-
-          {/* Day labels */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4, marginBottom: 4 }}>
             {DAY_LABELS.map((d) => (
               <div
@@ -1086,24 +1081,42 @@ export default function App() {
               </div>
             ))}
           </div>
-
-          {/* Month grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4 }}>
             {monthGrid.map((day, i) => {
               if (!day) return <div key={`empty-${i}`} />;
               const ymd = toYMD(day);
               const isToday = ymd === today;
               const dayTasks = filtered.filter((t) => t.due === ymd);
+              const isDragTarget = calDragOver === ymd;
               return (
                 <div
                   key={ymd}
+                  onClick={() => {
+                    setForm({ ...emptyForm, client: clients[0] || "", due: ymd });
+                    setShowAdd(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setCalDragOver(ymd);
+                  }}
+                  onDragLeave={() => setCalDragOver(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (calDragging !== null) {
+                      setTasks((ts) => ts.map((t) => (t.id === calDragging ? { ...t, due: ymd } : t)));
+                      setCalDragging(null);
+                    }
+                    setCalDragOver(null);
+                  }}
                   style={{
-                    background: isToday ? "#EEF2FF" : "#fff",
+                    background: isDragTarget ? "#EEF2FF" : isToday ? "#F5F3FF" : "#fff",
                     borderRadius: 10,
-                    border: `1.5px solid ${isToday ? "#6366F1" : "#E2E8F0"}`,
+                    border: `1.5px solid ${isDragTarget ? "#6366F1" : isToday ? "#A5B4FC" : "#E2E8F0"}`,
                     minHeight: 90,
-                    overflow: "visible",
                     padding: "6px 6px 4px",
+                    cursor: "pointer",
+                    transition: "background .1s,border .1s",
+                    position: "relative",
                   }}
                 >
                   <div
@@ -1130,13 +1143,27 @@ export default function App() {
                       return (
                         <div key={t.id} style={{ position: "relative" }}>
                           <div
-                            onClick={() => setPopover(isOpen ? null : t.id)}
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setCalDragging(t.id);
+                            }}
+                            onDragEnd={() => {
+                              setCalDragging(null);
+                              setCalDragOver(null);
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPopover(isOpen ? null : t.id);
+                            }}
                             style={{
                               padding: "2px 5px",
                               borderRadius: 4,
-                              cursor: "pointer",
+                              cursor: "grab",
                               background: cc.bg,
                               borderLeft: `2px solid ${cc.border}`,
+                              opacity: calDragging === t.id ? 0.5 : 1,
+                              transition: "opacity .1s",
                             }}
                           >
                             <div
@@ -1176,8 +1203,6 @@ export default function App() {
               );
             })}
           </div>
-
-          {/* Unscheduled */}
           {unscheduled.length > 0 && (
             <div
               style={{
@@ -1226,7 +1251,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Confirm remove client modal */}
       {confirmRemoveClient && (
         <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
           <p style={{ fontSize: 14, color: "#475569", marginBottom: 20, lineHeight: 1.6 }}>
@@ -1275,7 +1299,6 @@ export default function App() {
           </div>
         </Modal>
       )}
-
       {showAdd && (
         <Modal title="New task" onClose={() => setShowAdd(false)}>
           <TaskForm
