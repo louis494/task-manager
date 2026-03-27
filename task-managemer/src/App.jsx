@@ -903,10 +903,8 @@ export default function App() {
     setInput("");
   }
   async function removeClient(name) {
-    const remaining = clients.filter((x) => x !== name);
-    const fallback = remaining[0] || "";
     await supabase.from("clients").delete().eq("name", name);
-    if (fallback) await supabase.from("tasks").update({ client: fallback }).eq("client", name);
+    await supabase.from("tasks").update({ client: "" }).eq("client", name);
     if (filterClient === name) setFilterClient("All");
     setConfirmRemoveClient(null);
   }
@@ -1520,11 +1518,7 @@ export default function App() {
         <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
           <p style={{ fontSize: 14, color: "#475569", marginBottom: 20, lineHeight: 1.6 }}>
             Are you sure you want to remove <strong style={{ color: "#0F172A" }}>{confirmRemoveClient}</strong>? Their
-            tasks will be reassigned to{" "}
-            <strong style={{ color: "#0F172A" }}>
-              {clients.filter((c) => c !== confirmRemoveClient)[0] || "no client"}
-            </strong>
-            .
+            tasks will have their client cleared. .
           </p>
           <div style={{ display: "flex", gap: 10 }}>
             <button
