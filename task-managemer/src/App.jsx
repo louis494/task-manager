@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 const CLIENT_COLORS = [
@@ -9,23 +9,20 @@ const CLIENT_COLORS = [
   { bg: "#FFF1F2", border: "#F43F5E", text: "#BE123C", dot: "#F43F5E" },
   { bg: "#ECFEFF", border: "#06B6D4", text: "#0E7490", dot: "#06B6D4" },
 ];
-
 const PRIORITY_STYLES = {
   High: { bg: "#FEF2F2", text: "#DC2626", dot: "#EF4444" },
   Medium: { bg: "#FFFBEB", text: "#D97706", dot: "#F59E0B" },
   Low: { bg: "#F0FDF4", text: "#16A34A", dot: "#22C55E" },
 };
-
 const COLUMNS = ["To Do", "In Progress", "Done"];
-
 const COL_STYLES = {
   "To Do": { accent: "#6366F1", lightBg: "#EEF2FF", label: "#4338CA" },
   "In Progress": { accent: "#F59E0B", lightBg: "#FFFBEB", label: "#B45309" },
   Done: { accent: "#10B981", lightBg: "#ECFDF5", label: "#047857" },
 };
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const initClients = ["Acme Corp", "BrightSpark", "Novo Agency"];
-
 const initTasks = [
   {
     id: 1,
@@ -82,27 +79,21 @@ const initTasks = [
     col: "Done",
   },
 ];
-
 let nextId = 7;
-
 const emptyForm = { title: "", client: initClients[0], assignee: "", priority: "Medium", due: "", col: "To Do" };
 
 function clientColor(name, clients) {
-  const idx = clients.indexOf(name);
-  return CLIENT_COLORS[idx % CLIENT_COLORS.length];
+  return CLIENT_COLORS[clients.indexOf(name) % CLIENT_COLORS.length];
 }
-
 function isOverdue(due, col) {
   if (!due || col === "Done") return false;
   return new Date(due) < new Date(new Date().toDateString());
 }
-
 function formatDate(d) {
   if (!d) return "";
   const [y, m, day] = d.split("-");
   return `${day}/${m}/${y.slice(2)}`;
 }
-
 function getInitials(name) {
   if (!name) return "?";
   return name
@@ -112,16 +103,31 @@ function getInitials(name) {
     .toUpperCase()
     .slice(0, 2);
 }
+function getMondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function toYMD(date) {
+  return date.toISOString().slice(0, 10);
+}
 
 function Modal({ title, onClose, children }) {
   useEffect(() => {
-    const handler = (e) => {
+    const h = (e) => {
       if (e.key === "Escape") onClose();
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, [onClose]);
-
   return createPortal(
     <div
       onClick={(e) => {
@@ -192,16 +198,7 @@ function TaskForm({
 }) {
   return (
     <div>
-      <style>{`
-        .tf-input { width:100%; padding:9px 12px; border-radius:8px; border:1.5px solid #E2E8F0;
-          font-size:14px; color:#0F172A; background:#F8FAFC; box-sizing:border-box;
-          outline:none; transition:border .15s; font-family:inherit; }
-        .tf-input:focus { border-color:#6366F1; background:#fff; }
-        .tf-label { font-size:12px; font-weight:500; color:#64748B; margin-bottom:4px; display:block; }
-        .tf-field { margin-bottom:14px; }
-        .tf-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-      `}</style>
-
+      <style>{`.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}`}</style>
       <div className="tf-field">
         <label className="tf-label">Title</label>
         <input
@@ -211,7 +208,6 @@ function TaskForm({
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
         />
       </div>
-
       <div className="tf-field">
         <label className="tf-label">Client</label>
         <select
@@ -224,7 +220,6 @@ function TaskForm({
           ))}
         </select>
       </div>
-
       <div className="tf-field" style={{ display: "flex", gap: 8 }}>
         <input
           className="tf-input"
@@ -252,7 +247,6 @@ function TaskForm({
           + Add
         </button>
       </div>
-
       <div className="tf-grid">
         <div className="tf-field">
           <label className="tf-label">Assignee</label>
@@ -276,7 +270,6 @@ function TaskForm({
           </select>
         </div>
       </div>
-
       <div className="tf-grid">
         <div className="tf-field">
           <label className="tf-label">Due date</label>
@@ -300,7 +293,6 @@ function TaskForm({
           </select>
         </div>
       </div>
-
       <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
         <button
           onClick={onCancel}
@@ -326,7 +318,7 @@ function TaskForm({
             padding: "10px",
             borderRadius: 8,
             border: "none",
-            background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
+            background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
             color: "#fff",
             fontSize: 14,
             fontWeight: 600,
@@ -342,9 +334,125 @@ function TaskForm({
   );
 }
 
+function Popover({ task, clients, onEdit, onClose }) {
+  const ref = useRef();
+  const cc = clientColor(task.client, clients);
+  const pr = PRIORITY_STYLES[task.priority];
+  useEffect(() => {
+    const h = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    setTimeout(() => document.addEventListener("mousedown", h), 0);
+    return () => document.removeEventListener("mousedown", h);
+  }, [onClose]);
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        zIndex: 100,
+        bottom: "calc(100% + 8px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "#fff",
+        borderRadius: 12,
+        padding: "14px 16px",
+        width: 220,
+        boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+        border: "1px solid #F1F5F9",
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 10, lineHeight: 1.4 }}>
+        {task.title}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: cc.dot,
+              display: "inline-block",
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontSize: 12, color: "#475569" }}>{task.client}</span>
+        </div>
+        {task.assignee && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "#94A3B8" }}>👤</span>
+            <span style={{ fontSize: 12, color: "#475569" }}>{task.assignee}</span>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: pr.dot,
+              display: "inline-block",
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontSize: 12, color: pr.text, fontWeight: 500 }}>{task.priority}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              padding: "2px 7px",
+              borderRadius: 20,
+              background: COL_STYLES[task.col]?.lightBg || "#F1F5F9",
+              color: COL_STYLES[task.col]?.label || "#475569",
+            }}
+          >
+            {task.col}
+          </span>
+        </div>
+      </div>
+      <button
+        onClick={onEdit}
+        style={{
+          width: "100%",
+          padding: "7px",
+          borderRadius: 8,
+          border: "1.5px solid #E2E8F0",
+          background: "#F8FAFC",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#6366F1",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        Edit task
+      </button>
+      <div
+        style={{
+          position: "absolute",
+          bottom: -6,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 10,
+          height: 10,
+          background: "#fff",
+          border: "1px solid #F1F5F9",
+          borderTop: "none",
+          borderLeft: "none",
+          rotate: "45deg",
+        }}
+      />
+    </div>
+  );
+}
+
 export default function App() {
   const [tasks, setTasks] = useState(initTasks);
   const [clients, setClients] = useState(initClients);
+  const [view, setView] = useState("board");
   const [filterClient, setFilterClient] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
@@ -352,8 +460,14 @@ export default function App() {
   const [form, setForm] = useState({ ...emptyForm });
   const [editForm, setEditForm] = useState({});
   const [newClientInput, setNewClientInput] = useState("");
+  const [newClientInputEdit, setNewClientInputEdit] = useState("");
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  const [weekStart, setWeekStart] = useState(() => getMondayOf(new Date()));
+  const [popover, setPopover] = useState(null);
+
+  const today = toYMD(new Date());
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   const filtered = useMemo(
     () =>
@@ -376,14 +490,12 @@ export default function App() {
     setF((f) => ({ ...f, client: name }));
     setInput("");
   }
-
   function addTask() {
     if (!form.title.trim()) return;
     setTasks((t) => [...t, { ...form, id: nextId++ }]);
     setForm({ ...emptyForm, client: clients[0] });
     setShowAdd(false);
   }
-
   function openEdit(t) {
     setEditing(t.id);
     setEditForm({
@@ -395,13 +507,11 @@ export default function App() {
       col: t.col,
     });
   }
-
   function saveEdit() {
     if (!editForm.title.trim()) return;
     setTasks((ts) => ts.map((t) => (t.id === editing ? { ...t, ...editForm } : t)));
     setEditing(null);
   }
-
   function deleteTask(id) {
     setTasks((ts) => ts.filter((t) => t.id !== id));
   }
@@ -409,7 +519,7 @@ export default function App() {
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
   }
 
-  const [newClientInputEdit, setNewClientInputEdit] = useState("");
+  const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
 
   return (
     <div
@@ -419,12 +529,7 @@ export default function App() {
         fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
       }}
     >
-      <style>{`
-        @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-        * { box-sizing:border-box; }
-        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
-      `}</style>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}*{box-sizing:border-box}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px}`}</style>
 
       {/* Header */}
       <div
@@ -460,6 +565,30 @@ export default function App() {
           <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Task Board</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* View toggle */}
+          <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3, gap: 2 }}>
+            {["board", "calendar"].map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  transition: "all .15s",
+                  background: view === v ? "#fff" : "transparent",
+                  color: view === v ? "#6366F1" : "#64748B",
+                  boxShadow: view === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                }}
+              >
+                {v === "board" ? "⊞ Board" : "📅 Calendar"}
+              </button>
+            ))}
+          </div>
           <div
             style={{
               display: "flex",
@@ -473,7 +602,7 @@ export default function App() {
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
             <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{pct}% complete</span>
             <span style={{ fontSize: 12, color: "#94A3B8" }}>
-              {done}/{total} tasks
+              {done}/{total}
             </span>
           </div>
           <button
@@ -586,254 +715,443 @@ export default function App() {
         </div>
       </div>
 
-      {/* Board */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 20, padding: "0 32px 32px" }}
-      >
-        {COLUMNS.map((col) => {
-          const cs = COL_STYLES[col];
-          const colTasks = filtered.filter((t) => t.col === col);
-          const isDragTarget = dragOver === col;
-          return (
-            <div
-              key={col}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(col);
-              }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragging !== null) moveTask(dragging, col);
-                setDragging(null);
-                setDragOver(null);
-              }}
-              style={{
-                background: isDragTarget ? cs.lightBg : "#F1F5F9",
-                borderRadius: 14,
-                padding: 16,
-                minHeight: 300,
-                border: `2px dashed ${isDragTarget ? cs.accent : "transparent"}`,
-                transition: "all .15s",
-              }}
-            >
-              {/* Column header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 3, background: cs.accent }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{col}</span>
-                </div>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "2px 8px",
-                    borderRadius: 20,
-                    background: cs.lightBg,
-                    color: cs.label,
-                    border: `1px solid ${cs.accent}33`,
-                  }}
+      {/* Board view */}
+      {view === "board" && (
+        <div
+          style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 20, padding: "0 32px 32px" }}
+        >
+          {COLUMNS.map((col) => {
+            const cs = COL_STYLES[col];
+            const colTasks = filtered.filter((t) => t.col === col);
+            const isDragTarget = dragOver === col;
+            return (
+              <div
+                key={col}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(col);
+                }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragging !== null) moveTask(dragging, col);
+                  setDragging(null);
+                  setDragOver(null);
+                }}
+                style={{
+                  background: isDragTarget ? cs.lightBg : "#F1F5F9",
+                  borderRadius: 14,
+                  padding: 16,
+                  minHeight: 300,
+                  border: `2px dashed ${isDragTarget ? cs.accent : "transparent"}`,
+                  transition: "all .15s",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}
                 >
-                  {colTasks.length}
-                </span>
-              </div>
-
-              {/* Tasks */}
-              {colTasks.map((t) => {
-                const cc = clientColor(t.client, clients);
-                const pr = PRIORITY_STYLES[t.priority];
-                const od = isOverdue(t.due, t.col);
-                return (
-                  <div
-                    key={t.id}
-                    draggable
-                    onDragStart={() => setDragging(t.id)}
-                    onDragEnd={() => {
-                      setDragging(null);
-                      setDragOver(null);
-                    }}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: cs.accent }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{col}</span>
+                  </div>
+                  <span
                     style={{
-                      background: "#fff",
-                      borderRadius: 12,
-                      padding: "14px 14px 10px",
-                      marginBottom: 10,
-                      cursor: "grab",
-                      boxShadow: dragging === t.id ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
-                      border: "1px solid #F1F5F9",
-                      borderLeft: `3px solid ${cc.border}`,
-                      transform: dragging === t.id ? "rotate(1.5deg) scale(1.02)" : "none",
-                      transition: "box-shadow .15s, transform .15s",
-                      opacity: dragging === t.id ? 0.85 : 1,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: cs.lightBg,
+                      color: cs.label,
+                      border: `1px solid ${cs.accent}33`,
                     }}
                   >
-                    {/* Card top row */}
+                    {colTasks.length}
+                  </span>
+                </div>
+                {colTasks.map((t) => {
+                  const cc = clientColor(t.client, clients);
+                  const pr = PRIORITY_STYLES[t.priority];
+                  const od = isOverdue(t.due, t.col);
+                  return (
                     <div
+                      key={t.id}
+                      draggable
+                      onDragStart={() => setDragging(t.id)}
+                      onDragEnd={() => {
+                        setDragging(null);
+                        setDragOver(null);
+                      }}
                       style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        marginBottom: 8,
+                        background: "#fff",
+                        borderRadius: 12,
+                        padding: "14px 14px 10px",
+                        marginBottom: 10,
+                        cursor: "grab",
+                        boxShadow: dragging === t.id ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+                        border: "1px solid #F1F5F9",
+                        borderLeft: `3px solid ${cc.border}`,
+                        transform: dragging === t.id ? "rotate(1.5deg) scale(1.02)" : "none",
+                        transition: "box-shadow .15s,transform .15s",
+                        opacity: dragging === t.id ? 0.85 : 1,
                       }}
                     >
-                      <span
+                      <div
                         style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: "#0F172A",
-                          lineHeight: 1.4,
-                          flex: 1,
-                          paddingRight: 8,
-                        }}
-                      >
-                        {t.title}
-                      </span>
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                        <button
-                          onClick={() => openEdit(t)}
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 6,
-                            border: "none",
-                            background: "#F1F5F9",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            color: "#94A3B8",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={() => deleteTask(t.id)}
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 6,
-                            border: "none",
-                            background: "#FEF2F2",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            color: "#FDA4AF",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Pills */}
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          padding: "3px 8px",
-                          borderRadius: 20,
-                          background: cc.bg,
-                          color: cc.text,
                           display: "flex",
-                          alignItems: "center",
-                          gap: 4,
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          marginBottom: 8,
                         }}
                       >
                         <span
                           style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: "50%",
-                            background: cc.dot,
-                            display: "inline-block",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: "#0F172A",
+                            lineHeight: 1.4,
+                            flex: 1,
+                            paddingRight: 8,
                           }}
-                        />
-                        {t.client}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          padding: "3px 8px",
-                          borderRadius: 20,
-                          background: pr.bg,
-                          color: pr.text,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: "50%",
-                            background: pr.dot,
-                            display: "inline-block",
-                          }}
-                        />
-                        {t.priority}
-                      </span>
-                    </div>
-
-                    {/* Footer */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {t.assignee && (
-                          <div
+                        >
+                          {t.title}
+                        </span>
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          <button
+                            onClick={() => openEdit(t)}
                             style={{
                               width: 22,
                               height: 22,
-                              borderRadius: "50%",
-                              background: `${cc.bg}`,
-                              border: `1.5px solid ${cc.border}`,
+                              borderRadius: 6,
+                              border: "none",
+                              background: "#F1F5F9",
+                              cursor: "pointer",
+                              fontSize: 11,
+                              color: "#94A3B8",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: 9,
-                              fontWeight: 700,
-                              color: cc.text,
                             }}
                           >
-                            {getInitials(t.assignee)}
-                          </div>
-                        )}
-                        {t.assignee && <span style={{ fontSize: 12, color: "#64748B" }}>{t.assignee}</span>}
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => deleteTask(t.id)}
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 6,
+                              border: "none",
+                              background: "#FEF2F2",
+                              cursor: "pointer",
+                              fontSize: 11,
+                              color: "#FDA4AF",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                      {t.due && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                         <span
                           style={{
                             fontSize: 11,
                             fontWeight: 500,
-                            padding: "2px 7px",
-                            borderRadius: 6,
-                            background: od ? "#FEF2F2" : "#F1F5F9",
-                            color: od ? "#DC2626" : "#64748B",
+                            padding: "3px 8px",
+                            borderRadius: 20,
+                            background: cc.bg,
+                            color: cc.text,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
                           }}
                         >
-                          {od ? "⚠ " : ""}
-                          {formatDate(t.due)}
+                          <span
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: "50%",
+                              background: cc.dot,
+                              display: "inline-block",
+                            }}
+                          />
+                          {t.client}
                         </span>
-                      )}
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 500,
+                            padding: "3px 8px",
+                            borderRadius: 20,
+                            background: pr.bg,
+                            color: pr.text,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: "50%",
+                              background: pr.dot,
+                              display: "inline-block",
+                            }}
+                          />
+                          {t.priority}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {t.assignee && (
+                            <div
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: "50%",
+                                background: cc.bg,
+                                border: `1.5px solid ${cc.border}`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: cc.text,
+                              }}
+                            >
+                              {getInitials(t.assignee)}
+                            </div>
+                          )}
+                          {t.assignee && <span style={{ fontSize: 12, color: "#64748B" }}>{t.assignee}</span>}
+                        </div>
+                        {t.due && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              padding: "2px 7px",
+                              borderRadius: 6,
+                              background: od ? "#FEF2F2" : "#F1F5F9",
+                              color: od ? "#DC2626" : "#64748B",
+                            }}
+                          >
+                            {od ? "⚠ " : ""}
+                            {formatDate(t.due)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {colTasks.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "#CBD5E1", fontSize: 13 }}>
+                    Drop tasks here
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Calendar view */}
+      {view === "calendar" && (
+        <div style={{ padding: "0 32px 32px" }}>
+          {/* Week nav */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <button
+              onClick={() => setWeekStart((d) => addDays(d, -7))}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: "1.5px solid #E2E8F0",
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: 16,
+                color: "#475569",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ‹
+            </button>
+            <button
+              onClick={() => setWeekStart(getMondayOf(new Date()))}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 8,
+                border: "1.5px solid #E2E8F0",
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#6366F1",
+                fontFamily: "inherit",
+              }}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setWeekStart((d) => addDays(d, 7))}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: "1.5px solid #E2E8F0",
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: 16,
+                color: "#475569",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ›
+            </button>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+              {weekDays[0].toLocaleDateString("en-GB", { day: "numeric", month: "short" })} –{" "}
+              {weekDays[6].toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
+          </div>
+
+          {/* Week grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 8 }}>
+            {weekDays.map((day, i) => {
+              const ymd = toYMD(day);
+              const isToday = ymd === today;
+              const dayTasks = filtered.filter((t) => t.due === ymd);
+              return (
+                <div
+                  key={ymd}
+                  style={{
+                    background: isToday ? "#EEF2FF" : "#fff",
+                    borderRadius: 12,
+                    border: `1.5px solid ${isToday ? "#6366F1" : "#E2E8F0"}`,
+                    minHeight: 160,
+                    overflow: "visible",
+                  }}
+                >
+                  {/* Day header */}
+                  <div style={{ padding: "10px 10px 6px", borderBottom: "1px solid #F1F5F9" }}>
+                    <div
+                      style={{ fontSize: 11, fontWeight: 500, color: isToday ? "#6366F1" : "#94A3B8", marginBottom: 2 }}
+                    >
+                      {DAYS[i]}
+                    </div>
+                    <div
+                      style={{ fontSize: 18, fontWeight: 700, color: isToday ? "#6366F1" : "#0F172A", lineHeight: 1 }}
+                    >
+                      {day.getDate()}
                     </div>
                   </div>
-                );
-              })}
-
-              {colTasks.length === 0 && (
-                <div style={{ textAlign: "center", padding: "24px 0", color: "#CBD5E1", fontSize: 13 }}>
-                  Drop tasks here
+                  {/* Task chips */}
+                  <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4 }}>
+                    {dayTasks.map((t) => {
+                      const cc = clientColor(t.client, clients);
+                      const isOpen = popover === t.id;
+                      return (
+                        <div key={t.id} style={{ position: "relative" }}>
+                          <div
+                            onClick={() => setPopover(isOpen ? null : t.id)}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              background: cc.bg,
+                              borderLeft: `3px solid ${cc.border}`,
+                              transition: "opacity .1s",
+                              opacity: 1,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: cc.text,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {t.title}
+                            </div>
+                            <div style={{ fontSize: 10, color: cc.text, opacity: 0.7 }}>{t.assignee || t.priority}</div>
+                          </div>
+                          {isOpen && (
+                            <Popover
+                              task={t}
+                              clients={clients}
+                              onEdit={() => {
+                                setPopover(null);
+                                openEdit(t);
+                              }}
+                              onClose={() => setPopover(null)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
 
-      {/* Add Modal */}
+          {/* Unscheduled */}
+          {unscheduled.length > 0 && (
+            <div
+              style={{
+                marginTop: 16,
+                background: "#fff",
+                borderRadius: 12,
+                border: "1.5px solid #E2E8F0",
+                padding: "14px 16px",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", marginBottom: 10 }}>UNSCHEDULED</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {unscheduled.map((t) => {
+                  const cc = clientColor(t.client, clients);
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => openEdit(t)}
+                      style={{
+                        padding: "5px 10px",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        background: cc.bg,
+                        border: `1px solid ${cc.border}`,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: cc.dot,
+                          display: "inline-block",
+                        }}
+                      />
+                      <span style={{ fontSize: 12, fontWeight: 500, color: cc.text }}>{t.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {showAdd && (
         <Modal title="New task" onClose={() => setShowAdd(false)}>
           <TaskForm
@@ -849,8 +1167,6 @@ export default function App() {
           />
         </Modal>
       )}
-
-      {/* Edit Modal */}
       {editing !== null && (
         <Modal title="Edit task" onClose={() => setEditing(null)}>
           <TaskForm
