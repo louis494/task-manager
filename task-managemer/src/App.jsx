@@ -932,10 +932,12 @@ export default function App() {
   }
   async function saveEdit() {
     if (!editForm.title.trim()) return;
-    await supabase
+    console.log("Saving:", editForm);
+    const { error } = await supabase
       .from("tasks")
       .update({ ...editForm, hours: parseFloat(editForm.hours) || 0 })
       .eq("id", editing);
+    console.log("Error:", error);
     setEditing(null);
   }
   async function deleteTask(id) {
