@@ -93,7 +93,6 @@ function getMonthGrid(year, month) {
   return cells;
 }
 
-// Full-screen task summary modal
 function TaskSummary({ task, clients, onEdit, onClose }) {
   const cc = clientColor(task.client, clients);
   const pr = PRIORITY_STYLES[task.priority];
@@ -135,10 +134,8 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
           overflow: "hidden",
         }}
       >
-        {/* Coloured top bar */}
         <div style={{ height: 4, background: `linear-gradient(90deg, ${cc.border}, ${cc.dot})` }} />
         <div style={{ padding: "24px 24px 20px" }}>
-          {/* Header */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ flex: 1, paddingRight: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -178,8 +175,6 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
               ✕
             </button>
           </div>
-
-          {/* Description */}
           {task.description && (
             <div
               style={{
@@ -193,8 +188,6 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
               <p style={{ fontSize: 13, color: "#475569", margin: 0, lineHeight: 1.6 }}>{task.description}</p>
             </div>
           )}
-
-          {/* Meta grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
             <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
               <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Priority</div>
@@ -250,8 +243,6 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
               </div>
             )}
           </div>
-
-          {/* Actions */}
           <button
             onClick={onEdit}
             style={{
@@ -342,17 +333,8 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-function TaskForm({
-  form,
-  setForm,
-  clients,
-  onSave,
-  onCancel,
-  saveLabel,
-  newClientInput,
-  setNewClientInput,
-  onAddClient,
-}) {
+// Task form — client is a simple dropdown, no inline creation
+function TaskForm({ form, setForm, clients, onSave, onCancel, saveLabel }) {
   return (
     <div>
       <style>{`.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`}</style>
@@ -382,37 +364,13 @@ function TaskForm({
           value={form.client}
           onChange={(e) => setForm((f) => ({ ...f, client: e.target.value }))}
         >
+          <option value="">— Select client —</option>
           {clients.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
-      </div>
-      <div className="tf-field" style={{ display: "flex", gap: 8 }}>
-        <input
-          className="tf-input"
-          style={{ flex: 1, marginBottom: 0 }}
-          placeholder="New client..."
-          value={newClientInput}
-          onChange={(e) => setNewClientInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onAddClient()}
-        />
-        <button
-          onClick={onAddClient}
-          style={{
-            padding: "9px 14px",
-            borderRadius: 8,
-            border: "1.5px solid #E2E8F0",
-            background: "#F8FAFC",
-            fontSize: 13,
-            color: "#6366F1",
-            fontWeight: 500,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-            fontFamily: "inherit",
-          }}
-        >
-          + Add
-        </button>
       </div>
       <div className="tf-grid3">
         <div className="tf-field">
@@ -513,7 +471,106 @@ function TaskForm({
   );
 }
 
-// Shared task card used in both Board and Calendar
+// Dedicated client management modal
+function ManageClientsModal({ clients, onAdd, onRemove, onClose }) {
+  const [input, setInput] = useState("");
+  function handleAdd() {
+    const name = input.trim();
+    if (!name || clients.includes(name)) return;
+    onAdd(name);
+    setInput("");
+  }
+  return (
+    <Modal title="Manage clients" onClose={onClose}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          style={{
+            flex: 1,
+            padding: "9px 12px",
+            borderRadius: 8,
+            border: "1.5px solid #E2E8F0",
+            fontSize: 14,
+            color: "#0F172A",
+            background: "#F8FAFC",
+            outline: "none",
+            fontFamily: "inherit",
+          }}
+          placeholder="New client name..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <button
+          onClick={handleAdd}
+          style={{
+            padding: "9px 16px",
+            borderRadius: 8,
+            border: "none",
+            background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          + Add
+        </button>
+      </div>
+      {clients.length === 0 && (
+        <p style={{ fontSize: 13, color: "#94A3B8", textAlign: "center", padding: "16px 0", margin: 0 }}>
+          No clients yet. Add one above.
+        </p>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {clients.map((c, i) => {
+          const cc = CLIENT_COLORS[i % CLIENT_COLORS.length];
+          return (
+            <div
+              key={c}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: cc.bg,
+                border: `1px solid ${cc.border}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{ width: 8, height: 8, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 500, color: cc.text }}>{c}</span>
+              </div>
+              <button
+                onClick={() => onRemove(c)}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#FEF2F2",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  color: "#FDA4AF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
 function TaskCard({
   t,
   clients,
@@ -550,7 +607,6 @@ function TaskCard({
         opacity: isDragging ? 0.85 : 1,
       }}
     >
-      {/* Client + title */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ flex: 1, paddingRight: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
@@ -619,8 +675,6 @@ function TaskCard({
           </div>
         )}
       </div>
-
-      {/* Description (board only) */}
       {showDescription && t.description && (
         <p
           style={{
@@ -635,8 +689,6 @@ function TaskCard({
           {t.description}
         </p>
       )}
-
-      {/* Pills row */}
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
         <span
           style={{
@@ -681,8 +733,6 @@ function TaskCard({
           </span>
         )}
       </div>
-
-      {/* Footer: assignee + due */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           {t.assignee && (
@@ -832,14 +882,12 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [showManageClients, setShowManageClients] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [editForm, setEditForm] = useState({});
-  const [newClientInput, setNewClientInput] = useState("");
-  const [newClientInputEdit, setNewClientInputEdit] = useState("");
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [calMonth, setCalMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
-  const [confirmRemoveClient, setConfirmRemoveClient] = useState(null);
   const [calDragging, setCalDragging] = useState(null);
   const [calDragOver, setCalDragOver] = useState(null);
 
@@ -896,24 +944,22 @@ export default function App() {
   const monthGrid = useMemo(() => getMonthGrid(calMonth.year, calMonth.month), [calMonth]);
   const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
 
-  async function addClient(input, setInput) {
-    const name = input.trim();
+  async function addClient(name) {
     if (!name || clients.includes(name)) return;
+    setClients((cs) => [...cs, name]);
     await supabase.from("clients").insert({ name });
-    setInput("");
   }
   async function removeClient(name) {
-    await supabase.from("clients").delete().eq("name", name);
-    await supabase.from("tasks").update({ client: "" }).eq("client", name);
     setClients((cs) => cs.filter((c) => c !== name));
     setTasks((ts) => ts.map((t) => (t.client === name ? { ...t, client: "" } : t)));
+    await supabase.from("clients").delete().eq("name", name);
+    await supabase.from("tasks").update({ client: "" }).eq("client", name);
     if (filterClient === name) setFilterClient("All");
-    setConfirmRemoveClient(null);
   }
   async function addTask() {
     if (!form.title.trim()) return;
     await supabase.from("tasks").insert({ ...form, hours: parseFloat(form.hours) || 0 });
-    setForm({ ...emptyForm, client: clients[0] || "" });
+    setForm({ ...emptyForm });
     setShowAdd(false);
   }
   function openEdit(t) {
@@ -921,7 +967,7 @@ export default function App() {
     setEditing(t.id);
     setEditForm({
       title: t.title,
-      client: t.client,
+      client: t.client || "",
       assignee: t.assignee || "",
       priority: t.priority,
       due: t.due || "",
@@ -932,12 +978,10 @@ export default function App() {
   }
   async function saveEdit() {
     if (!editForm.title.trim()) return;
-    console.log("Saving:", editForm);
-    const { error } = await supabase
+    await supabase
       .from("tasks")
       .update({ ...editForm, hours: parseFloat(editForm.hours) || 0 })
       .eq("id", editing);
-    console.log("Error:", error);
     setEditing(null);
   }
   async function deleteTask(id) {
@@ -1084,8 +1128,24 @@ export default function App() {
             </span>
           </div>
           <button
+            onClick={() => setShowManageClients(true)}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1.5px solid #E2E8F0",
+              background: "#fff",
+              color: "#475569",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Clients
+          </button>
+          <button
             onClick={() => {
-              setForm({ ...emptyForm, client: clients[0] || "" });
+              setForm({ ...emptyForm });
               setShowAdd(true);
             }}
             style={{
@@ -1168,47 +1228,23 @@ export default function App() {
             return (
               <div
                 key={c}
+                onClick={() => setFilterClient(isActive ? "All" : c)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
-                  padding: "4px 6px 4px 10px",
+                  gap: 5,
+                  padding: "5px 10px",
                   borderRadius: 20,
                   background: isActive ? cc.bg : "#fff",
                   border: `1.5px solid ${isActive ? cc.border : "#E2E8F0"}`,
+                  cursor: "pointer",
                   transition: "all .15s",
                 }}
               >
                 <span
-                  onClick={() => setFilterClient(isActive ? "All" : c)}
-                  style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}
-                >
-                  <span
-                    style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
-                  />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: isActive ? cc.text : "#64748B" }}>{c}</span>
-                </span>
-                <button
-                  onClick={() => setConfirmRemoveClient(c)}
-                  style={{
-                    marginLeft: 4,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    border: "none",
-                    background: isActive ? cc.border + "33" : "#E2E8F0",
-                    cursor: "pointer",
-                    fontSize: 9,
-                    color: isActive ? cc.text : "#94A3B8",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  ✕
-                </button>
+                  style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 500, color: isActive ? cc.text : "#64748B" }}>{c}</span>
               </div>
             );
           })}
@@ -1378,7 +1414,7 @@ export default function App() {
                 <div
                   key={ymd}
                   onClick={() => {
-                    setForm({ ...emptyForm, client: clients[0] || "", due: ymd });
+                    setForm({ ...emptyForm, due: ymd });
                     setShowAdd(true);
                   }}
                   onDragOver={(e) => {
@@ -1506,7 +1542,6 @@ export default function App() {
 
       {view === "hours" && <HoursSummary tasks={tasks} clients={clients} />}
 
-      {/* Task summary modal */}
       {summary && (
         <TaskSummary
           task={summary}
@@ -1516,50 +1551,15 @@ export default function App() {
         />
       )}
 
-      {confirmRemoveClient && (
-        <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
-          <p style={{ fontSize: 14, color: "#475569", marginBottom: 20, lineHeight: 1.6 }}>
-            Are you sure you want to remove <strong style={{ color: "#0F172A" }}>{confirmRemoveClient}</strong>? Their
-            tasks will have their client cleared. .
-          </p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={() => setConfirmRemoveClient(null)}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 8,
-                border: "1.5px solid #E2E8F0",
-                background: "#F8FAFC",
-                color: "#64748B",
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => removeClient(confirmRemoveClient)}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 8,
-                border: "none",
-                background: "#EF4444",
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        </Modal>
+      {showManageClients && (
+        <ManageClientsModal
+          clients={clients}
+          onAdd={addClient}
+          onRemove={removeClient}
+          onClose={() => setShowManageClients(false)}
+        />
       )}
+
       {showAdd && (
         <Modal title="New task" wide onClose={() => setShowAdd(false)}>
           <TaskForm
@@ -1569,9 +1569,6 @@ export default function App() {
             onSave={addTask}
             onCancel={() => setShowAdd(false)}
             saveLabel="Add task"
-            newClientInput={newClientInput}
-            setNewClientInput={setNewClientInput}
-            onAddClient={() => addClient(newClientInput, setNewClientInput)}
           />
         </Modal>
       )}
@@ -1584,9 +1581,6 @@ export default function App() {
             onSave={saveEdit}
             onCancel={() => setEditing(null)}
             saveLabel="Save changes"
-            newClientInput={newClientInputEdit}
-            setNewClientInput={setNewClientInputEdit}
-            onAddClient={() => addClient(newClientInputEdit, setNewClientInputEdit)}
           />
         </Modal>
       )}
