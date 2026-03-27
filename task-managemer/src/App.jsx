@@ -333,11 +333,12 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-// Task form — client is a simple dropdown, no inline creation
+const TASK_FORM_CSS = `.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`;
+
 function TaskForm({ form, setForm, clients, onSave, onCancel, saveLabel }) {
   return (
     <div>
-      <style>{`.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`}</style>
+      <style>{TASK_FORM_CSS}</style>
       <div className="tf-field">
         <label className="tf-label">Title</label>
         <input
@@ -887,7 +888,7 @@ export default function App() {
   const [editForm, setEditForm] = useState({});
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
-  const [calMonth, setCalMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [calDragging, setCalDragging] = useState(null);
   const [calDragOver, setCalDragOver] = useState(null);
 
@@ -1000,7 +1001,8 @@ export default function App() {
     setCalMonth(({ year, month }) => (month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 }));
   }
   function goToday() {
-    setCalMonth({ year: new Date().getFullYear(), month: new Date().getMonth() });
+    const d = new Date();
+    setCalMonth({ year: d.getFullYear(), month: d.getMonth() });
   }
 
   if (loading)
