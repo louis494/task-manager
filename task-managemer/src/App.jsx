@@ -46,6 +46,8 @@ const initTasks = [
     priority: "High",
     due: "2026-03-28",
     col: "To Do",
+    hours: 3,
+    description: "Full audit of brand assets and guidelines.",
   },
   {
     id: 2,
@@ -55,6 +57,8 @@ const initTasks = [
     priority: "Medium",
     due: "2026-04-05",
     col: "To Do",
+    hours: 2,
+    description: "",
   },
   {
     id: 3,
@@ -64,6 +68,8 @@ const initTasks = [
     priority: "High",
     due: "2026-03-30",
     col: "In Progress",
+    hours: 5,
+    description: "Second round of wireframes following feedback.",
   },
   {
     id: 4,
@@ -73,6 +79,8 @@ const initTasks = [
     priority: "Low",
     due: "2026-04-10",
     col: "In Progress",
+    hours: 1.5,
+    description: "",
   },
   {
     id: 5,
@@ -82,6 +90,8 @@ const initTasks = [
     priority: "Medium",
     due: "2026-03-27",
     col: "Done",
+    hours: 4,
+    description: "Instagram and LinkedIn asset pack.",
   },
   {
     id: 6,
@@ -91,10 +101,21 @@ const initTasks = [
     priority: "Low",
     due: "2026-04-15",
     col: "Done",
+    hours: 6,
+    description: "",
   },
 ];
 let nextId = 7;
-const emptyForm = { title: "", client: initClients[0], assignee: "", priority: "Medium", due: "", col: "To Do" };
+const emptyForm = {
+  title: "",
+  client: initClients[0],
+  assignee: "",
+  priority: "Medium",
+  due: "",
+  col: "To Do",
+  hours: "",
+  description: "",
+};
 
 function clientColor(name, clients) {
   return CLIENT_COLORS[Math.max(0, clients.indexOf(name)) % CLIENT_COLORS.length];
@@ -134,7 +155,7 @@ function getMonthGrid(year, month) {
   return cells;
 }
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
     const h = (e) => {
       if (e.key === "Escape") onClose();
@@ -165,7 +186,7 @@ function Modal({ title, onClose, children }) {
           borderRadius: 16,
           padding: "28px 28px 24px",
           width: "100%",
-          maxWidth: 420,
+          maxWidth: wide ? 560 : 420,
           boxShadow: "0 25px 50px rgba(0,0,0,0.2)",
           boxSizing: "border-box",
           animation: "slideUp .18s ease",
@@ -212,7 +233,7 @@ function TaskForm({
 }) {
   return (
     <div>
-      <style>{`.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}`}</style>
+      <style>{`.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`}</style>
       <div className="tf-field">
         <label className="tf-label">Title</label>
         <input
@@ -220,6 +241,16 @@ function TaskForm({
           placeholder="Task name"
           value={form.title}
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+        />
+      </div>
+      <div className="tf-field">
+        <label className="tf-label">Description</label>
+        <textarea
+          className="tf-input"
+          placeholder="Optional notes or context..."
+          value={form.description}
+          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          style={{ resize: "vertical", minHeight: 72 }}
         />
       </div>
       <div className="tf-field">
@@ -261,7 +292,7 @@ function TaskForm({
           + Add
         </button>
       </div>
-      <div className="tf-grid">
+      <div className="tf-grid3">
         <div className="tf-field">
           <label className="tf-label">Assignee</label>
           <input
@@ -282,6 +313,18 @@ function TaskForm({
             <option>Medium</option>
             <option>Low</option>
           </select>
+        </div>
+        <div className="tf-field">
+          <label className="tf-label">Hours</label>
+          <input
+            className="tf-input"
+            type="number"
+            min="0"
+            step="0.5"
+            placeholder="0"
+            value={form.hours}
+            onChange={(e) => setForm((f) => ({ ...f, hours: e.target.value }))}
+          />
         </div>
       </div>
       <div className="tf-grid">
@@ -371,15 +414,29 @@ function Popover({ task, clients, onEdit, onClose }) {
         background: "#fff",
         borderRadius: 12,
         padding: "14px 16px",
-        width: 210,
+        width: 220,
         boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
         border: "1px solid #F1F5F9",
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 10, lineHeight: 1.4 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>
         {task.title}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+      {task.description && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#64748B",
+            marginBottom: 10,
+            lineHeight: 1.5,
+            borderLeft: "2px solid #E2E8F0",
+            paddingLeft: 8,
+          }}
+        >
+          {task.description}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span
             style={{
@@ -397,6 +454,12 @@ function Popover({ task, clients, onEdit, onClose }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 12, color: "#94A3B8" }}>👤</span>
             <span style={{ fontSize: 12, color: "#475569" }}>{task.assignee}</span>
+          </div>
+        )}
+        {task.hours > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "#94A3B8" }}>⏱</span>
+            <span style={{ fontSize: 12, color: "#475569" }}>{task.hours}h</span>
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -462,6 +525,100 @@ function Popover({ task, clients, onEdit, onClose }) {
   );
 }
 
+function HoursSummary({ tasks, clients }) {
+  const summary = useMemo(() => {
+    return clients.map((c, i) => {
+      const clientTasks = tasks.filter((t) => t.client === c);
+      const total = clientTasks.reduce((sum, t) => sum + (parseFloat(t.hours) || 0), 0);
+      const byStatus = {};
+      COLUMNS.forEach((col) => {
+        byStatus[col] = clientTasks.filter((t) => t.col === col).reduce((s, t) => s + (parseFloat(t.hours) || 0), 0);
+      });
+      return { name: c, color: CLIENT_COLORS[i % CLIENT_COLORS.length], total, byStatus, count: clientTasks.length };
+    });
+  }, [tasks, clients]);
+
+  const grandTotal = summary.reduce((s, c) => s + c.total, 0);
+
+  return (
+    <div style={{ padding: "0 32px 32px" }}>
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "#0F172A" }}>Hours by client</span>
+        <span style={{ fontSize: 13, color: "#94A3B8", marginLeft: 10 }}>{grandTotal.toFixed(1)}h total</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
+        {summary.map((c) => {
+          const pct = grandTotal > 0 ? (c.total / grandTotal) * 100 : 0;
+          return (
+            <div
+              key={c.name}
+              style={{
+                background: "#fff",
+                borderRadius: 12,
+                border: "1px solid #F1F5F9",
+                padding: "16px 18px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: c.color.dot,
+                      display: "inline-block",
+                    }}
+                  />
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{c.name}</span>
+                </div>
+                <span style={{ fontSize: 18, fontWeight: 700, color: c.color.text }}>{c.total.toFixed(1)}h</span>
+              </div>
+              <div style={{ height: 6, background: "#F1F5F9", borderRadius: 3, marginBottom: 10, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${pct}%`,
+                    background: c.color.border,
+                    borderRadius: 3,
+                    transition: "width .4s ease",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {COLUMNS.map((col) => {
+                  const cs = COL_STYLES[col];
+                  return (
+                    <div
+                      key={col}
+                      style={{
+                        flex: 1,
+                        background: cs.lightBg,
+                        borderRadius: 6,
+                        padding: "5px 6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 600, color: cs.label }}>
+                        {c.byStatus[col].toFixed(1)}h
+                      </div>
+                      <div style={{ fontSize: 9, color: cs.label, opacity: 0.7, marginTop: 1 }}>{col}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "#94A3B8" }}>
+                {c.count} task{c.count !== 1 ? "s" : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const today = toYMD(new Date());
 
@@ -517,7 +674,7 @@ export default function App() {
   }
   function addTask() {
     if (!form.title.trim()) return;
-    setTasks((t) => [...t, { ...form, id: nextId++ }]);
+    setTasks((t) => [...t, { ...form, id: nextId++, hours: parseFloat(form.hours) || 0 }]);
     setForm({ ...emptyForm, client: clients[0] || "" });
     setShowAdd(false);
   }
@@ -530,11 +687,15 @@ export default function App() {
       priority: t.priority,
       due: t.due,
       col: t.col,
+      hours: t.hours || "",
+      description: t.description || "",
     });
   }
   function saveEdit() {
     if (!editForm.title.trim()) return;
-    setTasks((ts) => ts.map((t) => (t.id === editing ? { ...t, ...editForm } : t)));
+    setTasks((ts) =>
+      ts.map((t) => (t.id === editing ? { ...t, ...editForm, hours: parseFloat(editForm.hours) || 0 } : t)),
+    );
     setEditing(null);
   }
   function deleteTask(id) {
@@ -598,7 +759,11 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3, gap: 2 }}>
-            {["board", "calendar"].map((v) => (
+            {[
+              ["board", "⊞ Board"],
+              ["calendar", "📅 Calendar"],
+              ["hours", "⏱ Hours"],
+            ].map(([v, label]) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -616,7 +781,7 @@ export default function App() {
                   boxShadow: view === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
                 }}
               >
-                {v === "board" ? "⊞ Board" : "📅 Calendar"}
+                {label}
               </button>
             ))}
           </div>
@@ -854,7 +1019,7 @@ export default function App() {
                           display: "flex",
                           alignItems: "flex-start",
                           justifyContent: "space-between",
-                          marginBottom: 8,
+                          marginBottom: 6,
                         }}
                       >
                         <span
@@ -908,6 +1073,20 @@ export default function App() {
                           </button>
                         </div>
                       </div>
+                      {t.description && (
+                        <p
+                          style={{
+                            fontSize: 12,
+                            color: "#64748B",
+                            margin: "0 0 8px",
+                            lineHeight: 1.5,
+                            borderLeft: "2px solid #E2E8F0",
+                            paddingLeft: 8,
+                          }}
+                        >
+                          {t.description}
+                        </p>
+                      )}
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                         <span
                           style={{
@@ -957,6 +1136,23 @@ export default function App() {
                           />
                           {t.priority}
                         </span>
+                        {t.hours > 0 && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              padding: "3px 8px",
+                              borderRadius: 20,
+                              background: "#F1F5F9",
+                              color: "#475569",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            ⏱ {t.hours}h
+                          </span>
+                        )}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1112,7 +1308,7 @@ export default function App() {
                     background: isDragTarget ? "#EEF2FF" : isToday ? "#F5F3FF" : "#fff",
                     borderRadius: 10,
                     border: `1.5px solid ${isDragTarget ? "#6366F1" : isToday ? "#A5B4FC" : "#E2E8F0"}`,
-                    minHeight: 90,
+                    minHeight: 100,
                     padding: "6px 6px 4px",
                     cursor: "pointer",
                     transition: "background .1s,border .1s",
@@ -1136,7 +1332,7 @@ export default function App() {
                   >
                     {day.getDate()}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     {dayTasks.slice(0, 3).map((t) => {
                       const cc = clientColor(t.client, clients);
                       const isOpen = popover === t.id;
@@ -1157,8 +1353,8 @@ export default function App() {
                               setPopover(isOpen ? null : t.id);
                             }}
                             style={{
-                              padding: "2px 5px",
-                              borderRadius: 4,
+                              padding: "4px 6px",
+                              borderRadius: 5,
                               cursor: "grab",
                               background: cc.bg,
                               borderLeft: `2px solid ${cc.border}`,
@@ -1174,9 +1370,32 @@ export default function App() {
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
+                                lineHeight: 1.3,
                               }}
                             >
                               {t.title}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  color: cc.text,
+                                  opacity: 0.75,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  flex: 1,
+                                }}
+                              >
+                                {t.client}
+                              </span>
+                              {t.hours > 0 && (
+                                <span
+                                  style={{ fontSize: 9, fontWeight: 600, color: cc.text, opacity: 0.9, flexShrink: 0 }}
+                                >
+                                  ⏱{t.hours}h
+                                </span>
+                              )}
                             </div>
                           </div>
                           {isOpen && (
@@ -1242,6 +1461,7 @@ export default function App() {
                         }}
                       />
                       <span style={{ fontSize: 12, fontWeight: 500, color: cc.text }}>{t.title}</span>
+                      {t.hours > 0 && <span style={{ fontSize: 11, color: cc.text, opacity: 0.7 }}>⏱{t.hours}h</span>}
                     </div>
                   );
                 })}
@@ -1250,6 +1470,9 @@ export default function App() {
           )}
         </div>
       )}
+
+      {/* Hours summary view */}
+      {view === "hours" && <HoursSummary tasks={tasks} clients={clients} />}
 
       {confirmRemoveClient && (
         <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
@@ -1300,7 +1523,7 @@ export default function App() {
         </Modal>
       )}
       {showAdd && (
-        <Modal title="New task" onClose={() => setShowAdd(false)}>
+        <Modal title="New task" wide onClose={() => setShowAdd(false)}>
           <TaskForm
             form={form}
             setForm={setForm}
@@ -1315,7 +1538,7 @@ export default function App() {
         </Modal>
       )}
       {editing !== null && (
-        <Modal title="Edit task" onClose={() => setEditing(null)}>
+        <Modal title="Edit task" wide onClose={() => setEditing(null)}>
           <TaskForm
             form={editForm}
             setForm={setEditForm}
