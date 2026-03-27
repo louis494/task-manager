@@ -20,7 +20,21 @@ const COL_STYLES = {
   "In Progress": { accent: "#F59E0B", lightBg: "#FFFBEB", label: "#B45309" },
   Done: { accent: "#10B981", lightBg: "#ECFDF5", label: "#047857" },
 };
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const initClients = ["Acme Corp", "BrightSpark", "Novo Agency"];
 const initTasks = [
@@ -83,7 +97,7 @@ let nextId = 7;
 const emptyForm = { title: "", client: initClients[0], assignee: "", priority: "Medium", due: "", col: "To Do" };
 
 function clientColor(name, clients) {
-  return CLIENT_COLORS[clients.indexOf(name) % CLIENT_COLORS.length];
+  return CLIENT_COLORS[Math.max(0, clients.indexOf(name)) % CLIENT_COLORS.length];
 }
 function isOverdue(due, col) {
   if (!due || col === "Done") return false;
@@ -103,21 +117,19 @@ function getInitials(name) {
     .toUpperCase()
     .slice(0, 2);
 }
-function getMondayOf(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-function addDays(date, n) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
 function toYMD(date) {
   return date.toISOString().slice(0, 10);
+}
+function getMonthGrid(year, month) {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  // Monday-based: Mon=0...Sun=6
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
 function Modal({ title, onClose, children }) {
@@ -357,7 +369,7 @@ function Popover({ task, clients, onEdit, onClose }) {
         background: "#fff",
         borderRadius: 12,
         padding: "14px 16px",
-        width: 220,
+        width: 210,
         boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
         border: "1px solid #F1F5F9",
       }}
@@ -398,20 +410,19 @@ function Popover({ task, clients, onEdit, onClose }) {
           />
           <span style={{ fontSize: 12, color: pr.text, fontWeight: 500 }}>{task.priority}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              padding: "2px 7px",
-              borderRadius: 20,
-              background: COL_STYLES[task.col]?.lightBg || "#F1F5F9",
-              color: COL_STYLES[task.col]?.label || "#475569",
-            }}
-          >
-            {task.col}
-          </span>
-        </div>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            padding: "2px 7px",
+            borderRadius: 20,
+            background: COL_STYLES[task.col]?.lightBg || "#F1F5F9",
+            color: COL_STYLES[task.col]?.label || "#475569",
+            alignSelf: "flex-start",
+          }}
+        >
+          {task.col}
+        </span>
       </div>
       <button
         onClick={onEdit}
@@ -463,11 +474,11 @@ export default function App() {
   const [newClientInputEdit, setNewClientInputEdit] = useState("");
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
-  const [weekStart, setWeekStart] = useState(() => getMondayOf(new Date()));
+  const [calMonth, setCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }));
   const [popover, setPopover] = useState(null);
+  const [confirmRemoveClient, setConfirmRemoveClient] = useState(null);
 
   const today = toYMD(new Date());
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   const filtered = useMemo(
     () =>
@@ -483,6 +494,8 @@ export default function App() {
   const done = tasks.filter((t) => t.col === "Done").length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
+  const monthGrid = useMemo(() => getMonthGrid(calMonth.year, calMonth.month), [calMonth]);
+
   function addClient(input, setInput, setF) {
     const name = input.trim();
     if (!name || clients.includes(name)) return;
@@ -490,6 +503,17 @@ export default function App() {
     setF((f) => ({ ...f, client: name }));
     setInput("");
   }
+
+  function removeClient(name) {
+    setClients((c) => c.filter((x) => x !== name));
+    // Reassign tasks belonging to removed client to first remaining client
+    const remaining = clients.filter((x) => x !== name);
+    const fallback = remaining[0] || "";
+    setTasks((ts) => ts.map((t) => (t.client === name ? { ...t, client: fallback } : t)));
+    if (filterClient === name) setFilterClient("All");
+    setConfirmRemoveClient(null);
+  }
+
   function addTask() {
     if (!form.title.trim()) return;
     setTasks((t) => [...t, { ...form, id: nextId++ }]);
@@ -520,6 +544,16 @@ export default function App() {
   }
 
   const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
+
+  function prevMonth() {
+    setCalMonth(({ year, month }) => (month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }));
+  }
+  function nextMonth() {
+    setCalMonth(({ year, month }) => (month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 }));
+  }
+  function goToday() {
+    setCalMonth({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  }
 
   return (
     <div
@@ -565,7 +599,6 @@ export default function App() {
           <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Task Board</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* View toggle */}
           <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3, gap: 2 }}>
             {["board", "calendar"].map((v) => (
               <button
@@ -607,7 +640,7 @@ export default function App() {
           </div>
           <button
             onClick={() => {
-              setForm({ ...emptyForm, client: clients[0] });
+              setForm({ ...emptyForm, client: clients[0] || "" });
               setShowAdd(true);
             }}
             style={{
@@ -642,7 +675,7 @@ export default function App() {
         />
       </div>
 
-      {/* Filters */}
+      {/* Filters + client pills with remove */}
       <div style={{ padding: "16px 32px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <select
           value={filterClient}
@@ -687,28 +720,51 @@ export default function App() {
         <div style={{ display: "flex", gap: 8, marginLeft: 4, flexWrap: "wrap" }}>
           {clients.map((c, i) => {
             const cc = CLIENT_COLORS[i % CLIENT_COLORS.length];
+            const isActive = filterClient === c;
             return (
               <div
                 key={c}
-                onClick={() => setFilterClient(filterClient === c ? "All" : c)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 5,
-                  padding: "5px 10px",
+                  gap: 4,
+                  padding: "4px 6px 4px 10px",
                   borderRadius: 20,
-                  background: filterClient === c ? cc.bg : "#fff",
-                  border: `1.5px solid ${filterClient === c ? cc.border : "#E2E8F0"}`,
-                  cursor: "pointer",
+                  background: isActive ? cc.bg : "#fff",
+                  border: `1.5px solid ${isActive ? cc.border : "#E2E8F0"}`,
                   transition: "all .15s",
                 }}
               >
                 <span
-                  style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
-                />
-                <span style={{ fontSize: 12, fontWeight: 500, color: filterClient === c ? cc.text : "#64748B" }}>
-                  {c}
+                  onClick={() => setFilterClient(isActive ? "All" : c)}
+                  style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}
+                >
+                  <span
+                    style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 500, color: isActive ? cc.text : "#64748B" }}>{c}</span>
                 </span>
+                <button
+                  onClick={() => setConfirmRemoveClient(c)}
+                  style={{
+                    marginLeft: 4,
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: isActive ? cc.border + "33" : "#E2E8F0",
+                    cursor: "pointer",
+                    fontSize: 9,
+                    color: isActive ? cc.text : "#94A3B8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             );
           })}
@@ -957,13 +1013,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Calendar view */}
+      {/* Calendar view — monthly */}
       {view === "calendar" && (
         <div style={{ padding: "0 32px 32px" }}>
-          {/* Week nav */}
+          {/* Month nav */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <button
-              onClick={() => setWeekStart((d) => addDays(d, -7))}
+              onClick={prevMonth}
               style={{
                 width: 32,
                 height: 32,
@@ -981,7 +1037,7 @@ export default function App() {
               ‹
             </button>
             <button
-              onClick={() => setWeekStart(getMondayOf(new Date()))}
+              onClick={goToday}
               style={{
                 padding: "5px 12px",
                 borderRadius: 8,
@@ -997,7 +1053,7 @@ export default function App() {
               Today
             </button>
             <button
-              onClick={() => setWeekStart((d) => addDays(d, 7))}
+              onClick={nextMonth}
               style={{
                 width: 32,
                 height: 32,
@@ -1014,15 +1070,27 @@ export default function App() {
             >
               ›
             </button>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-              {weekDays[0].toLocaleDateString("en-GB", { day: "numeric", month: "short" })} –{" "}
-              {weekDays[6].toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#0F172A" }}>
+              {MONTH_NAMES[calMonth.month]} {calMonth.year}
             </span>
           </div>
 
-          {/* Week grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 8 }}>
-            {weekDays.map((day, i) => {
+          {/* Day labels */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4, marginBottom: 4 }}>
+            {DAY_LABELS.map((d) => (
+              <div
+                key={d}
+                style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "#94A3B8", padding: "4px 0" }}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Month grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4 }}>
+            {monthGrid.map((day, i) => {
+              if (!day) return <div key={`empty-${i}`} />;
               const ymd = toYMD(day);
               const isToday = ymd === today;
               const dayTasks = filtered.filter((t) => t.due === ymd);
@@ -1031,28 +1099,32 @@ export default function App() {
                   key={ymd}
                   style={{
                     background: isToday ? "#EEF2FF" : "#fff",
-                    borderRadius: 12,
+                    borderRadius: 10,
                     border: `1.5px solid ${isToday ? "#6366F1" : "#E2E8F0"}`,
-                    minHeight: 160,
+                    minHeight: 90,
                     overflow: "visible",
+                    padding: "6px 6px 4px",
                   }}
                 >
-                  {/* Day header */}
-                  <div style={{ padding: "10px 10px 6px", borderBottom: "1px solid #F1F5F9" }}>
-                    <div
-                      style={{ fontSize: 11, fontWeight: 500, color: isToday ? "#6366F1" : "#94A3B8", marginBottom: 2 }}
-                    >
-                      {DAYS[i]}
-                    </div>
-                    <div
-                      style={{ fontSize: 18, fontWeight: 700, color: isToday ? "#6366F1" : "#0F172A", lineHeight: 1 }}
-                    >
-                      {day.getDate()}
-                    </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: isToday ? 700 : 500,
+                      marginBottom: 4,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: isToday ? "#6366F1" : "transparent",
+                      color: isToday ? "#fff" : "#334155",
+                    }}
+                  >
+                    {day.getDate()}
                   </div>
-                  {/* Task chips */}
-                  <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4 }}>
-                    {dayTasks.map((t) => {
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {dayTasks.slice(0, 3).map((t) => {
                       const cc = clientColor(t.client, clients);
                       const isOpen = popover === t.id;
                       return (
@@ -1060,18 +1132,16 @@ export default function App() {
                           <div
                             onClick={() => setPopover(isOpen ? null : t.id)}
                             style={{
-                              padding: "4px 8px",
-                              borderRadius: 6,
+                              padding: "2px 5px",
+                              borderRadius: 4,
                               cursor: "pointer",
                               background: cc.bg,
-                              borderLeft: `3px solid ${cc.border}`,
-                              transition: "opacity .1s",
-                              opacity: 1,
+                              borderLeft: `2px solid ${cc.border}`,
                             }}
                           >
                             <div
                               style={{
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: 600,
                                 color: cc.text,
                                 whiteSpace: "nowrap",
@@ -1081,7 +1151,6 @@ export default function App() {
                             >
                               {t.title}
                             </div>
-                            <div style={{ fontSize: 10, color: cc.text, opacity: 0.7 }}>{t.assignee || t.priority}</div>
                           </div>
                           {isOpen && (
                             <Popover
@@ -1097,6 +1166,11 @@ export default function App() {
                         </div>
                       );
                     })}
+                    {dayTasks.length > 3 && (
+                      <div style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8", paddingLeft: 4 }}>
+                        +{dayTasks.length - 3} more
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1150,6 +1224,56 @@ export default function App() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Confirm remove client modal */}
+      {confirmRemoveClient && (
+        <Modal title="Remove client?" onClose={() => setConfirmRemoveClient(null)}>
+          <p style={{ fontSize: 14, color: "#475569", marginBottom: 20, lineHeight: 1.6 }}>
+            Are you sure you want to remove <strong style={{ color: "#0F172A" }}>{confirmRemoveClient}</strong>? Their
+            tasks will be reassigned to{" "}
+            <strong style={{ color: "#0F172A" }}>
+              {clients.filter((c) => c !== confirmRemoveClient)[0] || "no client"}
+            </strong>
+            .
+          </p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setConfirmRemoveClient(null)}
+              style={{
+                flex: 1,
+                padding: "10px",
+                borderRadius: 8,
+                border: "1.5px solid #E2E8F0",
+                background: "#F8FAFC",
+                color: "#64748B",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => removeClient(confirmRemoveClient)}
+              style={{
+                flex: 1,
+                padding: "10px",
+                borderRadius: 8,
+                border: "none",
+                background: "#EF4444",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Remove
+            </button>
+          </div>
+        </Modal>
       )}
 
       {showAdd && (
