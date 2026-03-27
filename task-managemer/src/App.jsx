@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 const CLIENT_COLORS = [
   { bg: "#EFF6FF", border: "#3B82F6", text: "#1D4ED8", dot: "#3B82F6" },
@@ -36,79 +39,9 @@ const MONTH_NAMES = [
 ];
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const initClients = ["Acme Corp", "BrightSpark", "Novo Agency"];
-const initTasks = [
-  {
-    id: 1,
-    title: "Brand audit",
-    client: "Acme Corp",
-    assignee: "Sarah",
-    priority: "High",
-    due: "2026-03-28",
-    col: "To Do",
-    hours: 3,
-    description: "Full audit of brand assets and guidelines.",
-  },
-  {
-    id: 2,
-    title: "Q2 campaign brief",
-    client: "BrightSpark",
-    assignee: "Tom",
-    priority: "Medium",
-    due: "2026-04-05",
-    col: "To Do",
-    hours: 2,
-    description: "",
-  },
-  {
-    id: 3,
-    title: "Wireframes v2",
-    client: "Novo Agency",
-    assignee: "Maya",
-    priority: "High",
-    due: "2026-03-30",
-    col: "In Progress",
-    hours: 5,
-    description: "Second round of wireframes following feedback.",
-  },
-  {
-    id: 4,
-    title: "Content calendar",
-    client: "Acme Corp",
-    assignee: "Tom",
-    priority: "Low",
-    due: "2026-04-10",
-    col: "In Progress",
-    hours: 1.5,
-    description: "",
-  },
-  {
-    id: 5,
-    title: "Social assets",
-    client: "BrightSpark",
-    assignee: "Sarah",
-    priority: "Medium",
-    due: "2026-03-27",
-    col: "Done",
-    hours: 4,
-    description: "Instagram and LinkedIn asset pack.",
-  },
-  {
-    id: 6,
-    title: "Logo refresh",
-    client: "Novo Agency",
-    assignee: "Maya",
-    priority: "Low",
-    due: "2026-04-15",
-    col: "Done",
-    hours: 6,
-    description: "",
-  },
-];
-let nextId = 7;
 const emptyForm = {
   title: "",
-  client: initClients[0],
+  client: "",
   assignee: "",
   priority: "Medium",
   due: "",
@@ -537,9 +470,7 @@ function HoursSummary({ tasks, clients }) {
       return { name: c, color: CLIENT_COLORS[i % CLIENT_COLORS.length], total, byStatus, count: clientTasks.length };
     });
   }, [tasks, clients]);
-
   const grandTotal = summary.reduce((s, c) => s + c.total, 0);
-
   return (
     <div style={{ padding: "0 32px 32px" }}>
       <div style={{ marginBottom: 16 }}>
@@ -622,8 +553,9 @@ function HoursSummary({ tasks, clients }) {
 export default function App() {
   const today = toYMD(new Date());
 
-  const [tasks, setTasks] = useState(initTasks);
-  const [clients, setClients] = useState(initClients);
+  const [tasks, setTasks] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState("board");
   const [filterClient, setFilterClient] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
@@ -641,6 +573,47 @@ export default function App() {
   const [calDragging, setCalDragging] = useState(null);
   const [calDragOver, setCalDragOver] = useState(null);
 
+  // Load initial data
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [{ data: tasksData }, { data: clientsData }] = await Promise.all([
+        supabase.from("tasks").select("*").order("created_at"),
+        supabase.from("clients").select("*").order("created_at"),
+      ]);
+      if (tasksData) setTasks(tasksData);
+      if (clientsData) setClients(clientsData.map((c) => c.name));
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  // Real-time subscriptions
+  useEffect(() => {
+    const tasksSub = supabase
+      .channel("tasks-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, (payload) => {
+        if (payload.eventType === "INSERT") setTasks((ts) => [...ts, payload.new]);
+        if (payload.eventType === "UPDATE")
+          setTasks((ts) => ts.map((t) => (t.id === payload.new.id ? payload.new : t)));
+        if (payload.eventType === "DELETE") setTasks((ts) => ts.filter((t) => t.id !== payload.old.id));
+      })
+      .subscribe();
+
+    const clientsSub = supabase
+      .channel("clients-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, (payload) => {
+        if (payload.eventType === "INSERT") setClients((cs) => [...cs, payload.new.name]);
+        if (payload.eventType === "DELETE") setClients((cs) => cs.filter((c) => c !== payload.old.name));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tasksSub);
+      supabase.removeChannel(clientsSub);
+    };
+  }, []);
+
   const filtered = useMemo(
     () =>
       tasks.filter(
@@ -657,27 +630,32 @@ export default function App() {
   const monthGrid = useMemo(() => getMonthGrid(calMonth.year, calMonth.month), [calMonth]);
   const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
 
-  function addClient(input, setInput, setF) {
+  async function addClient(input, setInput) {
     const name = input.trim();
     if (!name || clients.includes(name)) return;
-    setClients((c) => [...c, name]);
-    setF((f) => ({ ...f, client: name }));
+    await supabase.from("clients").insert({ name });
     setInput("");
   }
-  function removeClient(name) {
+
+  async function removeClient(name) {
     const remaining = clients.filter((x) => x !== name);
     const fallback = remaining[0] || "";
-    setClients(remaining);
-    setTasks((ts) => ts.map((t) => (t.client === name ? { ...t, client: fallback } : t)));
+    await supabase.from("clients").delete().eq("name", name);
+    if (fallback) {
+      await supabase.from("tasks").update({ client: fallback }).eq("client", name);
+    }
     if (filterClient === name) setFilterClient("All");
     setConfirmRemoveClient(null);
   }
-  function addTask() {
+
+  async function addTask() {
     if (!form.title.trim()) return;
-    setTasks((t) => [...t, { ...form, id: nextId++, hours: parseFloat(form.hours) || 0 }]);
+    const payload = { ...form, hours: parseFloat(form.hours) || 0 };
+    await supabase.from("tasks").insert(payload);
     setForm({ ...emptyForm, client: clients[0] || "" });
     setShowAdd(false);
   }
+
   function openEdit(t) {
     setEditing(t.id);
     setEditForm({
@@ -685,25 +663,34 @@ export default function App() {
       client: t.client,
       assignee: t.assignee,
       priority: t.priority,
-      due: t.due,
+      due: t.due || "",
       col: t.col,
       hours: t.hours || "",
       description: t.description || "",
     });
   }
-  function saveEdit() {
+
+  async function saveEdit() {
     if (!editForm.title.trim()) return;
-    setTasks((ts) =>
-      ts.map((t) => (t.id === editing ? { ...t, ...editForm, hours: parseFloat(editForm.hours) || 0 } : t)),
-    );
+    await supabase
+      .from("tasks")
+      .update({ ...editForm, hours: parseFloat(editForm.hours) || 0 })
+      .eq("id", editing);
     setEditing(null);
   }
-  function deleteTask(id) {
-    setTasks((ts) => ts.filter((t) => t.id !== id));
+
+  async function deleteTask(id) {
+    await supabase.from("tasks").delete().eq("id", id);
   }
-  function moveTask(id, col) {
-    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
+
+  async function moveTask(id, col) {
+    await supabase.from("tasks").update({ col }).eq("id", id);
   }
+
+  async function rescheduleTask(id, due) {
+    await supabase.from("tasks").update({ due }).eq("id", id);
+  }
+
   function prevMonth() {
     setCalMonth(({ year, month }) => (month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }));
   }
@@ -713,6 +700,43 @@ export default function App() {
   function goToday() {
     setCalMonth({ year: new Date().getFullYear(), month: new Date().getMonth() });
   }
+
+  if (loading)
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#F8FAFC",
+          fontFamily: "-apple-system,sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+              margin: "0 auto 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" opacity=".9" />
+              <rect x="9" y="1" width="6" height="6" rx="1.5" fill="white" opacity=".6" />
+              <rect x="1" y="9" width="6" height="6" rx="1.5" fill="white" opacity=".6" />
+              <rect x="9" y="9" width="6" height="6" rx="1.5" fill="white" opacity=".3" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 14, color: "#94A3B8" }}>Loading your board...</div>
+        </div>
+      </div>
+    );
 
   return (
     <div
@@ -826,7 +850,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Progress bar */}
       <div style={{ height: 3, background: "#E2E8F0" }}>
         <div
           style={{
@@ -1299,7 +1322,7 @@ export default function App() {
                   onDrop={(e) => {
                     e.preventDefault();
                     if (calDragging !== null) {
-                      setTasks((ts) => ts.map((t) => (t.id === calDragging ? { ...t, due: ymd } : t)));
+                      rescheduleTask(calDragging, ymd);
                       setCalDragging(null);
                     }
                     setCalDragOver(null);
@@ -1471,7 +1494,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Hours summary view */}
       {view === "hours" && <HoursSummary tasks={tasks} clients={clients} />}
 
       {confirmRemoveClient && (
@@ -1533,7 +1555,7 @@ export default function App() {
             saveLabel="Add task"
             newClientInput={newClientInput}
             setNewClientInput={setNewClientInput}
-            onAddClient={() => addClient(newClientInput, setNewClientInput, setForm)}
+            onAddClient={() => addClient(newClientInput, setNewClientInput)}
           />
         </Modal>
       )}
@@ -1548,7 +1570,7 @@ export default function App() {
             saveLabel="Save changes"
             newClientInput={newClientInputEdit}
             setNewClientInput={setNewClientInputEdit}
-            onAddClient={() => addClient(newClientInputEdit, setNewClientInputEdit, setEditForm)}
+            onAddClient={() => addClient(newClientInputEdit, setNewClientInputEdit)}
           />
         </Modal>
       )}
