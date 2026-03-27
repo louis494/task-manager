@@ -905,6 +905,8 @@ export default function App() {
   async function removeClient(name) {
     await supabase.from("clients").delete().eq("name", name);
     await supabase.from("tasks").update({ client: "" }).eq("client", name);
+    setClients((cs) => cs.filter((c) => c !== name));
+    setTasks((ts) => ts.map((t) => (t.client === name ? { ...t, client: "" } : t)));
     if (filterClient === name) setFilterClient("All");
     setConfirmRemoveClient(null);
   }
