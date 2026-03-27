@@ -51,7 +51,12 @@ const emptyForm = {
 };
 
 function clientColor(name, clients) {
-  return CLIENT_COLORS[Math.max(0, clients.indexOf(name)) % CLIENT_COLORS.length];
+  const idx = clients.indexOf(name);
+  return CLIENT_COLORS[Math.max(0, idx) % CLIENT_COLORS.length];
+}
+function toNum(v) {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
 }
 function isOverdue(due, col) {
   if (!due || col === "Done") return false;
@@ -138,9 +143,16 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
             <div style={{ flex: 1, paddingRight: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <span
-                  style={{ width: 7, height: 7, borderRadius: "50%", background: cc.dot, display: "inline-block" }}
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: cc.dot,
+                    display: "inline-block",
+                    flexShrink: 0,
+                  }}
                 />
-                <span style={{ fontSize: 12, fontWeight: 500, color: cc.text }}>{task.client}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{task.client}</span>
               </div>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.3 }}>
                 {task.title}
@@ -516,6 +528,7 @@ function TaskCard({
 }) {
   const cc = clientColor(t.client, clients);
   const pr = PRIORITY_STYLES[t.priority];
+  const cs = COL_STYLES[t.col];
   const od = isOverdue(t.due, t.col);
   return (
     <div
@@ -551,7 +564,7 @@ function TaskCard({
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 11, fontWeight: 500, color: cc.text }}>{t.client}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#475569" }}>{t.client}</span>
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", lineHeight: 1.4 }}>{t.title}</div>
         </div>
@@ -641,6 +654,18 @@ function TaskCard({
           <span style={{ width: 4, height: 4, borderRadius: "50%", background: pr.dot, display: "inline-block" }} />
           {t.priority}
         </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            padding: "2px 7px",
+            borderRadius: 20,
+            background: cs?.lightBg || "#F1F5F9",
+            color: cs?.label || "#475569",
+          }}
+        >
+          {t.col}
+        </span>
         {t.hours > 0 && (
           <span
             style={{
@@ -707,10 +732,10 @@ function HoursSummary({ tasks, clients }) {
   const summary = useMemo(() => {
     return clients.map((c, i) => {
       const clientTasks = tasks.filter((t) => t.client === c);
-      const total = clientTasks.reduce((sum, t) => sum + (parseFloat(t.hours) || 0), 0);
+      const total = clientTasks.reduce((sum, t) => sum + toNum(t.hours), 0);
       const byStatus = {};
       COLUMNS.forEach((col) => {
-        byStatus[col] = clientTasks.filter((t) => t.col === col).reduce((s, t) => s + (parseFloat(t.hours) || 0), 0);
+        byStatus[col] = clientTasks.filter((t) => t.col === col).reduce((s, t) => s + toNum(t.hours), 0);
       });
       return { name: c, color: CLIENT_COLORS[i % CLIENT_COLORS.length], total, byStatus, count: clientTasks.length };
     });
@@ -865,9 +890,9 @@ export default function App() {
     [tasks, filterClient, filterPriority],
   );
 
-  const total = tasks.length;
+  const taskCount = tasks.length;
   const done = tasks.filter((t) => t.col === "Done").length;
-  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const pct = taskCount === 0 ? 0 : Math.round((done / taskCount) * 100);
   const monthGrid = useMemo(() => getMonthGrid(calMonth.year, calMonth.month), [calMonth]);
   const unscheduled = useMemo(() => filtered.filter((t) => !t.due), [filtered]);
 
@@ -1053,7 +1078,7 @@ export default function App() {
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
             <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{pct}% complete</span>
             <span style={{ fontSize: 12, color: "#94A3B8" }}>
-              {done}/{total}
+              {done}/{taskCount}
             </span>
           </div>
           <button
