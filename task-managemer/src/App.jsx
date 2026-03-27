@@ -2,6 +2,64 @@ import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 
+// SVG Icon components
+const IconX = ({ size = 12 }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+    <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+const IconPencil = ({ size = 11 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <path d="M11.5 2.5l2 2-8.5 8.5H3v-2l8.5-8.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconClock = ({ size = 10 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M8 5v3.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M8 8.5l2.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const IconAlert = ({ size = 10 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <path d="M8 2L14.5 13.5H1.5L8 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M8 6.5v3M8 11.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const IconBoard = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+    <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+    <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+    <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+const IconCalendar = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <rect x="1" y="2.5" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M1 7h14M5 1v3M11 1v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+const IconTimer = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="9" r="6" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M8 6v3.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M6 1h4M8 1v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+const IconPlus = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+    <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+const IconUsers = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <circle cx="6" cy="5" r="3" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M1 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M13 7c1.1 0 2 .9 2 2s-.9 2-2 2M15 14c0-1.66-1.34-3-3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 const CLIENT_COLORS = [
@@ -170,9 +228,12 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
+                transition: "background .15s,color .15s",
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; e.currentTarget.style.color = "#334155"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#64748B"; }}
             >
-              ✕
+              <IconX size={12} />
             </button>
           </div>
           {task.description && (
@@ -230,14 +291,14 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
             {task.hours > 0 && (
               <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
                 <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Hours</div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>⏱ {task.hours}h</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#334155", display: "flex", alignItems: "center", gap: 4 }}><IconClock size={12} />{task.hours}h</span>
               </div>
             )}
             {task.due && (
               <div style={{ background: od ? "#FEF2F2" : "#F8FAFC", borderRadius: 8, padding: "10px 12px" }}>
                 <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 500 }}>Due date</div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: od ? "#DC2626" : "#334155" }}>
-                  {od ? "⚠ " : ""}
+                <span style={{ fontSize: 13, fontWeight: 600, color: od ? "#DC2626" : "#334155", display: "flex", alignItems: "center", gap: 4 }}>
+                  {od && <IconAlert size={12} />}
                   {formatDate(task.due)}
                 </span>
               </div>
@@ -245,6 +306,8 @@ function TaskSummary({ task, clients, onEdit, onClose }) {
           </div>
           <button
             onClick={onEdit}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.45)"}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"}
             style={{
               width: "100%",
               padding: "11px",
@@ -306,7 +369,7 @@ function Modal({ title, onClose, children, wide }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>{title}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.01em" }}>{title}</span>
           <button
             onClick={onClose}
             style={{
@@ -321,9 +384,12 @@ function Modal({ title, onClose, children, wide }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              transition: "background .15s,color .15s",
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; e.currentTarget.style.color = "#334155"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#64748B"; }}
           >
-            ✕
+            <IconX size={11} />
           </button>
         </div>
         {children}
@@ -333,7 +399,7 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-const TASK_FORM_CSS = `.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s;font-family:inherit}.tf-input:focus{border-color:#6366F1;background:#fff}.tf-label{font-size:12px;font-weight:500;color:#64748B;margin-bottom:4px;display:block}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`;
+const TASK_FORM_CSS = `.tf-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid #E2E8F0;font-size:14px;color:#0F172A;background:#F8FAFC;box-sizing:border-box;outline:none;transition:border .15s,box-shadow .15s,background .15s;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;font-weight:500}.tf-input:focus{border-color:#6366F1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,0.1)}.tf-input:hover:not(:focus){border-color:#CBD5E1}.tf-label{font-size:11.5px;font-weight:600;color:#64748B;margin-bottom:5px;display:block;letter-spacing:0.02em;text-transform:uppercase}.tf-field{margin-bottom:14px}.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}`;
 
 function TaskForm({ form, setForm, clients, onSave, onCancel, saveLabel }) {
   return (
@@ -556,13 +622,16 @@ function ManageClientsModal({ clients, onAdd, onRemove, onClose }) {
                   background: "#FEF2F2",
                   cursor: "pointer",
                   fontSize: 11,
-                  color: "#FDA4AF",
+                  color: "#F87171",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transition: "background .15s,color .15s",
                 }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.color = "#DC2626"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#F87171"; }}
               >
-                ✕
+                <IconX size={9} />
               </button>
             </div>
           );
@@ -594,18 +663,19 @@ function TaskCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onSummary}
+      className={isDragging ? "" : "task-card-hover"}
       style={{
         background: "#fff",
         borderRadius: 12,
         padding: "12px 12px 10px",
         marginBottom: 8,
         cursor: "pointer",
-        boxShadow: isDragging ? "0 8px 24px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+        boxShadow: isDragging ? "0 12px 32px rgba(99,102,241,0.18)" : "0 1px 3px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.03)",
         border: "1px solid #F1F5F9",
         borderLeft: `3px solid ${cc.border}`,
-        transform: isDragging ? "rotate(1.5deg) scale(1.02)" : "none",
+        transform: isDragging ? "rotate(2deg) scale(1.03)" : "none",
         transition: "box-shadow .15s, transform .15s",
-        opacity: isDragging ? 0.85 : 1,
+        opacity: isDragging ? 0.88 : 1,
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
@@ -634,20 +704,22 @@ function TaskCard({
                   onEdit();
                 }}
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 5,
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
                   border: "none",
                   background: "#F1F5F9",
                   cursor: "pointer",
-                  fontSize: 10,
                   color: "#94A3B8",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transition: "background .15s,color .15s",
                 }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#E0E7FF"; e.currentTarget.style.color = "#6366F1"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#94A3B8"; }}
               >
-                ✎
+                <IconPencil size={11} />
               </button>
             )}
             {onDelete && (
@@ -657,20 +729,22 @@ function TaskCard({
                   onDelete();
                 }}
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 5,
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
                   border: "none",
                   background: "#FEF2F2",
                   cursor: "pointer",
-                  fontSize: 10,
-                  color: "#FDA4AF",
+                  color: "#F87171",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transition: "background .15s,color .15s",
                 }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.color = "#DC2626"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#F87171"; }}
               >
-                ✕
+                <IconX size={9} />
               </button>
             )}
           </div>
@@ -728,9 +802,12 @@ function TaskCard({
               borderRadius: 20,
               background: "#F1F5F9",
               color: "#475569",
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
             }}
           >
-            ⏱ {t.hours}h
+            <IconClock size={9} />{t.hours}h
           </span>
         )}
       </div>
@@ -768,9 +845,12 @@ function TaskCard({
               borderRadius: 5,
               background: od ? "#FEF2F2" : "#F1F5F9",
               color: od ? "#DC2626" : "#64748B",
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
             }}
           >
-            {od ? "⚠ " : ""}
+            {od && <IconAlert size={9} />}
             {formatDate(t.due)}
           </span>
         )}
@@ -1013,8 +1093,8 @@ export default function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#F8FAFC",
-          fontFamily: "-apple-system,sans-serif",
+          background: "linear-gradient(160deg,#F5F3FF 0%,#F8FAFC 40%,#F0F9FF 100%)",
+          fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
         }}
       >
         <div style={{ textAlign: "center" }}>
@@ -1046,22 +1126,48 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#F8FAFC",
-        fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+        background: "linear-gradient(160deg,#F5F3FF 0%,#F8FAFC 40%,#F0F9FF 100%)",
+        fontFamily: "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
       }}
     >
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}*{box-sizing:border-box}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px}`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        *{box-sizing:border-box;margin:0;padding:0}
+        ::-webkit-scrollbar{width:5px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:99px}
+        ::-webkit-scrollbar-thumb:hover{background:#94A3B8}
+        button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #6366F1;outline-offset:2px}
+        .task-card-hover{transition:box-shadow .18s,transform .18s,border-color .18s}
+        .task-card-hover:hover{box-shadow:0 4px 16px rgba(99,102,241,0.10);transform:translateY(-1px);border-color:#E0E7FF!important}
+        .btn-ghost{transition:background .15s,color .15s}
+        .btn-ghost:hover{background:#F1F5F9!important;color:#334155!important}
+        .nav-tab{transition:background .15s,color .15s,box-shadow .15s}
+        .chip-filter{transition:all .15s}
+        .chip-filter:hover{border-color:#6366F1!important}
+        .col-card{transition:background .15s,border-color .15s}
+        .cal-day{transition:background .12s,border-color .12s}
+        .cal-day:hover{background:#F5F3FF!important;border-color:#C7D2FE!important}
+      `}</style>
 
       {/* Header */}
       <div
         style={{
-          background: "#fff",
-          borderBottom: "1px solid #E2E8F0",
+          background: "rgba(255,255,255,0.85)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(226,232,240,0.8)",
           padding: "0 32px",
           height: 64,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1083,56 +1189,65 @@ export default function App() {
               <rect x="9" y="9" width="6" height="6" rx="1.5" fill="white" opacity=".3" />
             </svg>
           </div>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Task Board</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em" }}>Task Board</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3, gap: 2 }}>
+          <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 10, padding: 3, gap: 2 }}>
             {[
-              ["board", "⊞ Board"],
-              ["calendar", "📅 Calendar"],
-              ["hours", "⏱ Hours"],
-            ].map(([v, label]) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                style={{
-                  padding: "5px 14px",
-                  borderRadius: 6,
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  transition: "all .15s",
-                  background: view === v ? "#fff" : "transparent",
-                  color: view === v ? "#6366F1" : "#64748B",
-                  boxShadow: view === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                }}
-              >
-                {label}
-              </button>
-            ))}
+              { v: "board", label: "Board", icon: IconBoard },
+              { v: "calendar", label: "Calendar", icon: IconCalendar },
+              { v: "hours", label: "Hours", icon: IconTimer },
+            ].map(({ v, label, icon }) => {
+              const TabIcon = icon;
+              return (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className="nav-tab"
+                  style={{
+                    padding: "5px 14px",
+                    borderRadius: 7,
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: view === v ? "#fff" : "transparent",
+                    color: view === v ? "#6366F1" : "#64748B",
+                    boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.04)" : "none",
+                  }}
+                >
+                  <TabIcon size={14} />
+                  {label}
+                </button>
+              );
+            })}
           </div>
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "#F1F5F9",
-              borderRadius: 8,
-              padding: "6px 12px",
+              background: "#F0FDF4",
+              border: "1px solid #BBF7D0",
+              borderRadius: 20,
+              padding: "5px 12px",
             }}
           >
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
-            <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{pct}% complete</span>
-            <span style={{ fontSize: 12, color: "#94A3B8" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 0 2px #D1FAE5" }} />
+            <span style={{ fontSize: 12, color: "#047857", fontWeight: 600 }}>{pct}%</span>
+            <span style={{ fontSize: 11, color: "#6EE7B7", fontWeight: 500 }}>
               {done}/{taskCount}
             </span>
           </div>
           <button
             onClick={() => setShowManageClients(true)}
+            className="btn-ghost"
             style={{
-              padding: "8px 14px",
+              padding: "7px 14px",
               borderRadius: 8,
               border: "1.5px solid #E2E8F0",
               background: "#fff",
@@ -1141,8 +1256,12 @@ export default function App() {
               fontWeight: 500,
               cursor: "pointer",
               fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
+            <IconUsers size={14} />
             Clients
           </button>
           <button
@@ -1159,13 +1278,18 @@ export default function App() {
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
+              fontFamily: "inherit",
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
+              gap: 7,
+              boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+              transition: "box-shadow .18s,opacity .18s",
             }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.45)"}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = "0 4px 14px rgba(99,102,241,0.35)"}
           >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add task
+            <IconPlus size={13} />
+            Add task
           </button>
         </div>
       </div>
@@ -1182,12 +1306,12 @@ export default function App() {
       </div>
 
       {/* Filters */}
-      <div style={{ padding: "16px 32px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ padding: "14px 32px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <select
           value={filterClient}
           onChange={(e) => setFilterClient(e.target.value)}
           style={{
-            padding: "7px 12px",
+            padding: "6px 12px",
             borderRadius: 8,
             border: "1.5px solid #E2E8F0",
             background: "#fff",
@@ -1196,6 +1320,8 @@ export default function App() {
             cursor: "pointer",
             fontFamily: "inherit",
             outline: "none",
+            fontWeight: 500,
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}
         >
           <option>All</option>
@@ -1207,7 +1333,7 @@ export default function App() {
           value={filterPriority}
           onChange={(e) => setFilterPriority(e.target.value)}
           style={{
-            padding: "7px 12px",
+            padding: "6px 12px",
             borderRadius: 8,
             border: "1.5px solid #E2E8F0",
             background: "#fff",
@@ -1216,6 +1342,8 @@ export default function App() {
             cursor: "pointer",
             fontFamily: "inherit",
             outline: "none",
+            fontWeight: 500,
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}
         >
           <option>All</option>
@@ -1231,6 +1359,7 @@ export default function App() {
               <div
                 key={c}
                 onClick={() => setFilterClient(isActive ? "All" : c)}
+                className="chip-filter"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -1276,21 +1405,23 @@ export default function App() {
                   setDragging(null);
                   setDragOver(null);
                 }}
+                className="col-card"
                 style={{
-                  background: isDragTarget ? cs.lightBg : "#F1F5F9",
-                  borderRadius: 14,
+                  background: isDragTarget ? cs.lightBg : "rgba(241,245,249,0.8)",
+                  borderRadius: 16,
                   padding: 16,
                   minHeight: 300,
                   border: `2px dashed ${isDragTarget ? cs.accent : "transparent"}`,
                   transition: "all .15s",
+                  backdropFilter: "blur(4px)",
                 }}
               >
                 <div
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 3, background: cs.accent }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{col}</span>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cs.accent, boxShadow: `0 0 0 3px ${cs.lightBg}` }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", letterSpacing: "-0.01em" }}>{col}</span>
                   </div>
                   <span
                     style={{
@@ -1325,7 +1456,7 @@ export default function App() {
                   />
                 ))}
                 {colTasks.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "24px 0", color: "#CBD5E1", fontSize: 13 }}>
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "#CBD5E1", fontSize: 12, fontWeight: 500, letterSpacing: "0.02em" }}>
                     Drop tasks here
                   </div>
                 )}
@@ -1439,7 +1570,7 @@ export default function App() {
                     minHeight: 100,
                     padding: "6px 6px 4px",
                     cursor: "pointer",
-                    transition: "background .1s,border .1s",
+                    transition: "background .12s,border-color .12s",
                   }}
                 >
                   <div
@@ -1532,7 +1663,7 @@ export default function App() {
                         }}
                       />
                       <span style={{ fontSize: 12, fontWeight: 500, color: cc.text }}>{t.title}</span>
-                      {t.hours > 0 && <span style={{ fontSize: 11, color: cc.text, opacity: 0.7 }}>⏱{t.hours}h</span>}
+                      {t.hours > 0 && <span style={{ fontSize: 11, color: cc.text, opacity: 0.7, display: "flex", alignItems: "center", gap: 2 }}><IconClock size={9} />{t.hours}h</span>}
                     </div>
                   );
                 })}
